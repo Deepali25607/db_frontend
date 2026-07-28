@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#5a0e1a"/>
+  <circle cx="256" cy="208" r="64" fill="none" stroke="#b98a2f" stroke-width="12"/>
+  <path d="M256 144 L232 116 L280 116 Z" fill="#b98a2f"/>
+  <text x="256" y="380" font-family="Georgia, 'Times New Roman', serif" font-size="110" fill="#f6efde" text-anchor="middle" font-weight="600" letter-spacing="4">DP</text>
+</svg>

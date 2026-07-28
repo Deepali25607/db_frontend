@@ -1,0 +1,14 @@
+{
+  "name": "DP Jewellers — Fine Gold & Diamond Jewellery",
+  "short_name": "DP Jewellers",
+  "description": "BIS-hallmarked fine jewellery, priced live on today's metal rate.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6efde",
+  "theme_color": "#5a0e1a",
+  "icons": [
+    { "src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/app-icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
