@@ -58,6 +58,53 @@
   --cream-3: #e9d4c4;
   --paper: #fcf6f0;
 }
+/* Midnight is the one dark palette: warm espresso surfaces, light ink,
+   and the maroon/green accents lifted to rose/sage so every
+   "accent fill + var(--cream) lettering" pairing stays legible. */
+:root[data-theme="midnight"] {
+  --cream: #1b1611;
+  --cream-2: #251e17;
+  --cream-3: #322920;
+  --paper: #221b15;
+  --ink: #f1e8d5;
+  --ink-soft: #beb197;
+  --ink-faint: #897e66;
+  --maroon: #d78893;
+  --maroon-deep: #e5abb3;
+  --maroon-bright: #ef9aa5;
+  --green: #8fc0a9;
+  --green-deep: #b3d6c4;
+  --gold: #d9ba70;
+  --gold-light: #e9d49f;
+  --line: rgba(241, 232, 213, 0.16);
+  --line-soft: rgba(241, 232, 213, 0.09);
+  --shadow-card: 0 18px 40px -22px rgba(0, 0, 0, 0.65);
+}
+/* the rate ticker and gold-scheme hero are deep-silk fills — pin them to the
+   heritage maroons so they don't turn rose-on-rose in the dark palette */
+:root[data-theme="midnight"] .ticker {
+  background: #38070f;
+}
+:root[data-theme="midnight"] .gs-hero {
+  color: #f1e8d5;
+  background:
+    radial-gradient(52rem 30rem at 85% -20%, rgba(185, 138, 47, 0.38), transparent 60%),
+    radial-gradient(40rem 26rem at 8% 115%, rgba(140, 22, 38, 0.55), transparent 65%),
+    linear-gradient(160deg, #38070f, #5a0e1a 55%, #470c17);
+}
+/* the invoice stays a white paper document in every theme */
+:root[data-theme="midnight"] .invoice-sheet {
+  --ink: #23211a;
+  --ink-soft: #6b6552;
+  --ink-faint: #a39b82;
+  --maroon: #5a0e1a;
+  --maroon-deep: #38070f;
+  --maroon-bright: #8c1626;
+  --green: #1e4d3b;
+  --line: rgba(35, 33, 26, 0.14);
+  --line-soft: rgba(35, 33, 26, 0.08);
+  color: var(--ink);
+}
 
 * {
   margin: 0;

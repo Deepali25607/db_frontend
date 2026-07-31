@@ -1013,6 +1013,7 @@ const SITE_THEMES = [
   { key: "champagne", name: "Champagne", desc: "A golden pour — festive and warm.", swatches: ["#f6edd2", "#fbf4e0", "#e7d7a4"] },
   { key: "sage", name: "Sage", desc: "Soft green-tinted ivory — fresh, botanical.", swatches: ["#eff2e4", "#f7f9ef", "#d9dfc2"] },
   { key: "blush", name: "Blush", desc: "Rosy ivory — bridal and romantic.", swatches: ["#f8efe8", "#fcf6f0", "#e9d4c4"] },
+  { key: "midnight", name: "Midnight", desc: "Dark mode — candlelit gold and rose on deep espresso.", swatches: ["#1b1611", "#221b15", "#322920"] },
 ];
 
 function AppearancePanel({ onSaved }) {
@@ -1132,7 +1133,7 @@ function AppearancePanel({ onSaved }) {
           >
             <span style={{ display: "flex", flex: "none" }}>
               {t.swatches.map((c) => (
-                <span key={c} style={{ width: 26, height: 26, borderRadius: "50%", background: c, border: "1px solid rgba(35,33,26,0.15)", marginLeft: c === t.swatches[0] ? 0 : -8 }} />
+                <span key={c} style={{ width: 26, height: 26, borderRadius: "50%", background: c, border: "1px solid var(--line)", marginLeft: c === t.swatches[0] ? 0 : -8 }} />
               ))}
             </span>
             <span>
