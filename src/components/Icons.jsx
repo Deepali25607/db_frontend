@@ -30,6 +30,19 @@ export const BagIcon = () => (
   </svg>
 );
 
+export const HomeIcon = () => (
+  <svg {...base}>
+    <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1v-9.5Z" />
+  </svg>
+);
+
+export const GemIcon = () => (
+  <svg {...base}>
+    <path d="M7 4h10l4 5.5L12 21 3 9.5 7 4Z" />
+    <path d="M3 9.5h18M9.5 4 12 9.5 14.5 4M12 21 9.5 9.5M12 21l2.5-11.5" />
+  </svg>
+);
+
 export const MoonIcon = () => (
   <svg {...base}>
     <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" />

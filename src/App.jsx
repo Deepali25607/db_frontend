@@ -1,5 +1,6 @@
 import { Suspense, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import BottomNav from "./components/BottomNav";
 import Footer from "./components/Footer";
 import Header from "./components/Header";
 import HelpWidget from "./components/HelpWidget";
@@ -37,6 +38,7 @@ export default function App() {
         </Suspense>
       </main>
       <Footer />
+      <BottomNav />
       <HelpWidget />
       <SearchOverlay />
       {toast && <div className="toast" role="status">{toast}</div>}

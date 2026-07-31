@@ -173,8 +173,9 @@ export default function Home() {
             <h2 className="section-title">
               Seven houses <em>of light.</em>
             </h2>
+            <p className="swipe-hint" aria-hidden>‹ swipe sideways ›</p>
           </Reveal>
-          <div className="cat-grid">
+          <div className="cat-grid m-swipe">
             {(categories || Array.from({ length: 5 })).map((c, i) =>
               c ? (
                 <Reveal key={c.key} delay={i * 0.06}>
@@ -208,7 +209,7 @@ export default function Home() {
               Coveted by <em>our clientele.</em>
             </h2>
           </Reveal>
-          <div className="product-grid">
+          <div className="product-grid m-swipe">
             {(featured || Array.from({ length: 4 })).map((p, i) =>
               p ? (
                 <Reveal key={p.slug} delay={(i % 4) * 0.07}>
@@ -261,7 +262,7 @@ export default function Home() {
               From our <em>customers.</em>
             </h2>
           </Reveal>
-          <div className="testimonial-grid">
+          <div className="testimonial-grid m-swipe" style={{ "--swipe-w": "84%" }}>
             {TESTIMONIALS.map((t, i) => (
               <Reveal key={t.name} delay={i * 0.09}>
                 <figure className="testimonial">
