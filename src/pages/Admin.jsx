@@ -115,7 +115,10 @@ function HeroMediaCard() {
     setNote(null);
     try {
       const { url } = await adminApi.uploadFile(file);
-      const res = await adminApi.patchContent(kind === "video" ? { heroVideo: url } : { heroImage: url });
+      // what you upload is what plays — the other medium's URL is cleared
+      const res = await adminApi.patchContent(
+        kind === "video" ? { heroVideo: url, heroImage: "" } : { heroImage: url, heroVideo: "" }
+      );
       setContent(res.content);
       setNote(`${kind === "video" ? "Video" : "Image"} uploaded — live on the homepage now.`);
     } catch (err) {
@@ -128,11 +131,11 @@ function HeroMediaCard() {
   if (!content) return null;
   return (
     <>
-      <h3 className="admin-subhead">Homepage hero media</h3>
       <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
         Upload straight from this computer — it applies immediately. Or paste a
-        full https:// URL below. When a video is set, it plays in place of the
-        image; clear the video field to go back to the image.
+        full https:// URL below. Uploading a video clears the image (the video
+        plays instead); uploading an image clears the video. With both fields
+        empty, the homepage shows the house image.
       </p>
       {note && <p className="admin-note">{note}</p>}
       {error && <p className="form-error">{error}</p>}
