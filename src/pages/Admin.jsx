@@ -24,6 +24,7 @@ export default function Admin() {
           {[
             ["dashboard", "Dashboard"],
             ["orders", "Orders"],
+            ["customers", "Customers"],
             ["rates", "Rate Console"],
             ["catalogue", "Catalogue"],
             ["schemes", "Schemes"],
@@ -57,6 +58,7 @@ export default function Admin() {
 
       {tab === "dashboard" && <Dashboard goTo={setTab} />}
       {tab === "orders" && <Orders />}
+      {tab === "customers" && <Customers />}
       {tab === "rates" && <Rates />}
       {tab === "catalogue" && <Catalogue />}
       {tab === "schemes" && <Schemes />}
@@ -1098,6 +1100,233 @@ function Settings() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------- customers */
+function CustomerProfile({ phone, onBack }) {
+  const [p, setP] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    adminApi.customer(phone).then(setP).catch((e) => setError(e.message));
+  }, [phone]);
+
+  if (error) return <><button className="settings-back" onClick={onBack}>← All customers</button><p className="form-error">{error}</p></>;
+  if (!p) return <div className="skeleton" style={{ height: 300 }} />;
+
+  const chip = (label, value) => (
+    <div className="kpi" key={label}><span>{value}</span><label>{label}</label></div>
+  );
+
+  return (
+    <div>
+      <button className="settings-back" onClick={onBack}>← All customers</button>
+      <h3 className="admin-subhead" style={{ marginTop: 0 }}>
+        {p.name || "Unnamed customer"}{" "}
+        <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>· {p.phone}</span>
+      </h3>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        {p.account
+          ? `Registered account since ${fmtDate(p.account.createdAt)}${p.account.email ? ` · ${p.account.email}` : ""}${p.account.ringSize ? ` · ring size ${p.account.ringSize}` : ""}`
+          : "Guest — has transacted without creating an account."}
+      </p>
+
+      <div className="kpi-grid" style={{ marginBottom: "1.4rem" }}>
+        {chip("Orders", p.stats.orders)}
+        {chip("Lifetime value", formatINR(p.stats.spend))}
+        {chip("Reward points", p.loyalty ? `${p.loyalty.points} · ${p.loyalty.tier}` : "—")}
+        {chip("Gold schemes", p.schemes.length)}
+      </div>
+
+      {p.account?.addresses?.length > 0 && (
+        <>
+          <h3 className="admin-subhead">Addresses</h3>
+          <table className="admin-table" style={{ marginBottom: "1.4rem" }}>
+            <tbody>
+              {p.account.addresses.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.label || "Address"}{a.isDefault ? <small>default</small> : null}</td>
+                  <td>{a.line}, {a.city || ""} {a.pincode}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <h3 className="admin-subhead">Orders</h3>
+      {p.orders.length === 0 ? (
+        <p className="muted" style={{ marginBottom: "1.4rem" }}>No orders yet.</p>
+      ) : (
+        <table className="admin-table" style={{ marginBottom: "1.4rem" }}>
+          <thead>
+            <tr><th>Order</th><th>When</th><th>Items</th><th>Paid</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {p.orders.map((o) => (
+              <tr key={o.orderId}>
+                <td>{o.orderId}</td>
+                <td style={{ whiteSpace: "nowrap" }}>{fmtDate(o.placedAt)}</td>
+                <td>{o.items}</td>
+                <td>{formatINR(o.payable)}<small>{o.payMode.toUpperCase()}</small></td>
+                <td><span className="status-pill">{o.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {p.returns.length > 0 && (
+        <>
+          <h3 className="admin-subhead">Returns & exchanges</h3>
+          <table className="admin-table" style={{ marginBottom: "1.4rem" }}>
+            <tbody>
+              {p.returns.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.id}<small>{r.orderId}</small></td>
+                  <td>{r.itemName} · {r.type}</td>
+                  <td>{formatINR(r.refundAmount)}</td>
+                  <td><span className="status-pill">{r.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {p.schemes.length > 0 && (
+        <>
+          <h3 className="admin-subhead">Gold schemes</h3>
+          <table className="admin-table" style={{ marginBottom: "1.4rem" }}>
+            <tbody>
+              {p.schemes.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.id}<small>since {fmtDate(s.startedAt)}</small></td>
+                  <td>{s.variant} · {formatINR(s.monthly)}/month</td>
+                  <td>{s.instalmentsPaid} instalment{s.instalmentsPaid === 1 ? "" : "s"}</td>
+                  <td><span className="status-pill">{s.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {(p.appointments.length > 0 || p.callbacks.length > 0 || p.enquiries.length > 0) && (
+        <>
+          <h3 className="admin-subhead">Touchpoints</h3>
+          <table className="admin-table" style={{ marginBottom: "1.4rem" }}>
+            <tbody>
+              {p.appointments.map((a) => (
+                <tr key={a.id}>
+                  <td>Showroom visit</td>
+                  <td>{a.date} · {a.slot} · {a.storeName}{a.productName ? ` — ${a.productName}` : ""}</td>
+                  <td><span className="status-pill">{a.status}</span></td>
+                </tr>
+              ))}
+              {p.callbacks.map((c) => (
+                <tr key={c.id}>
+                  <td>Call-back</td>
+                  <td>{fmtDate(c.at)} — {c.productName}</td>
+                  <td><span className="status-pill">{c.status}</span></td>
+                </tr>
+              ))}
+              {p.enquiries.map((e) => (
+                <tr key={e.id}>
+                  <td>Custom enquiry</td>
+                  <td>{e.budgetBand} — {e.description}…</td>
+                  <td><span className="status-pill">{e.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {p.loyalty?.ledger?.length > 0 && (
+        <>
+          <h3 className="admin-subhead">Recent reward activity</h3>
+          <table className="admin-table">
+            <tbody>
+              {p.loyalty.ledger.map((l, i) => (
+                <tr key={i}>
+                  <td style={{ whiteSpace: "nowrap" }}>{fmtDate(l.at)}</td>
+                  <td>{l.type}{l.orderId ? <small>{l.orderId}</small> : null}</td>
+                  <td style={{ color: l.points >= 0 ? "var(--green)" : "var(--maroon-bright)" }}>
+                    {l.points >= 0 ? "+" : ""}{l.points} pts
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Customers() {
+  const [rows, setRows] = useState(null);
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [error, setError] = useState(null);
+
+  const refresh = useCallback(() => {
+    adminApi.customers().then(setRows).catch((e) => setError(e.message));
+  }, []);
+  useEffect(refresh, [refresh]);
+
+  if (error && !rows) return <p className="form-error">{error}</p>;
+  if (!rows) return <div className="skeleton" style={{ height: 300 }} />;
+  if (selected) return <CustomerProfile phone={selected} onBack={() => { setSelected(null); refresh(); }} />;
+
+  const needle = q.trim().toLowerCase();
+  const shown = needle
+    ? rows.filter((r) =>
+        [r.name, r.phone, r.email].some((v) => v && String(v).toLowerCase().includes(needle))
+      )
+    : rows;
+
+  return (
+    <div>
+      <h3 className="admin-subhead" style={{ marginTop: 0 }}>
+        Customers ({rows.length})
+      </h3>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "0.9rem" }}>
+        Everyone who has transacted or signed in — registered accounts and guest
+        buyers alike. Open a row for the full profile.
+      </p>
+      <div className="field" style={{ maxWidth: 360, marginBottom: "1rem" }}>
+        <input
+          placeholder="Search name, mobile or email…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Search customers"
+        />
+      </div>
+      {shown.length === 0 ? (
+        <p className="muted">No customers match that search.</p>
+      ) : (
+        <table className="admin-table">
+          <thead>
+            <tr><th>Customer</th><th>Type</th><th>Orders</th><th>Lifetime value</th><th>Rewards</th><th>Last order</th></tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.phone} onClick={() => setSelected(r.phone)} style={{ cursor: "pointer" }}>
+                <td>{r.name || "—"}<small>{r.phone}{r.email ? ` · ${r.email}` : ""}</small></td>
+                <td><span className="status-pill">{r.registered ? "Account" : "Guest"}</span></td>
+                <td>{r.orders}</td>
+                <td>{formatINR(r.spend)}</td>
+                <td>{r.points > 0 ? `${r.points} · ${r.tier}` : "—"}</td>
+                <td style={{ whiteSpace: "nowrap" }}>{r.lastOrderAt ? fmtDate(r.lastOrderAt) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
