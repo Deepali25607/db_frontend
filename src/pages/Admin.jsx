@@ -1267,10 +1267,81 @@ function CustomerProfile({ phone, onBack }) {
   );
 }
 
+function RegionalFootfall() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    adminApi.footfall().then(setData).catch((e) => setError(e.message));
+  }, []);
+
+  if (error) return <p className="form-error">{error}</p>;
+  if (!data) return <div className="skeleton" style={{ height: 260 }} />;
+  if (data.regions.length === 0) return <p className="muted">No orders yet — regions appear as customers buy.</p>;
+
+  const max = Math.max(...data.regions.map((r) => r.customers), 1);
+
+  return (
+    <>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "0.9rem" }}>
+        Regions come from the delivery PIN code on each order (Indian postal
+        circles); showroom footfall counts visit bookings.
+      </p>
+      <table className="admin-table" style={{ marginBottom: "1.6rem" }}>
+        <thead>
+          <tr><th>Region</th><th style={{ width: "34%" }}>Customers</th><th>Orders</th><th>Revenue</th></tr>
+        </thead>
+        <tbody>
+          {data.regions.map((r) => (
+            <tr key={r.region}>
+              <td>{r.region}</td>
+              <td>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                  <div
+                    aria-hidden
+                    style={{
+                      width: `${Math.max(4, (r.customers / max) * 100)}%`,
+                      maxWidth: "80%",
+                      height: 10,
+                      background: "var(--maroon)",
+                      borderRadius: "0 4px 4px 0",
+                      flex: "none",
+                    }}
+                  />
+                  <span>{r.customers}</span>
+                </div>
+              </td>
+              <td>{r.orders}</td>
+              <td>{formatINR(r.revenue)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h3 className="admin-subhead">Showroom footfall — visit bookings</h3>
+      {data.showrooms.length === 0 ? (
+        <p className="muted">No showroom visits booked yet.</p>
+      ) : (
+        <table className="admin-table">
+          <tbody>
+            {data.showrooms.map((s) => (
+              <tr key={s.storeName}>
+                <td>{s.storeName}</td>
+                <td>{s.visits} booking{s.visits === 1 ? "" : "s"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
 function Customers() {
   const [rows, setRows] = useState(null);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState(null);
+  const [view, setView] = useState("directory"); // directory | footfall
   const [error, setError] = useState(null);
 
   const refresh = useCallback(() => {
@@ -1291,9 +1362,30 @@ function Customers() {
 
   return (
     <div>
-      <h3 className="admin-subhead" style={{ marginTop: 0 }}>
-        Customers ({rows.length})
-      </h3>
+      <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.9rem" }}>
+        <h3 className="admin-subhead" style={{ margin: 0 }}>
+          Customers ({rows.length})
+        </h3>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
+          <button
+            className={view === "directory" ? "btn btn-maroon" : "btn btn-outline"}
+            style={{ padding: "0.4rem 1rem" }}
+            onClick={() => setView("directory")}
+          >
+            Directory
+          </button>
+          <button
+            className={view === "footfall" ? "btn btn-maroon" : "btn btn-outline"}
+            style={{ padding: "0.4rem 1rem" }}
+            onClick={() => setView("footfall")}
+          >
+            Regional footfall
+          </button>
+        </div>
+      </div>
+      {view === "footfall" && <RegionalFootfall />}
+      {view === "footfall" ? null : (
+      <>
       <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "0.9rem" }}>
         Everyone who has transacted or signed in — registered accounts and guest
         buyers alike. Open a row for the full profile.
@@ -1326,6 +1418,8 @@ function Customers() {
             ))}
           </tbody>
         </table>
+      )}
+      </>
       )}
     </div>
   );

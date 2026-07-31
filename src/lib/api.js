@@ -256,6 +256,7 @@ export const adminApi = {
   appointments: () => request("/api/admin/appointments", { headers: adminHeaders() }),
   callbacks: () => request("/api/admin/callbacks", { headers: adminHeaders() }),
   customers: () => request("/api/admin/customers", { headers: adminHeaders() }),
+  footfall: () => request("/api/admin/footfall", { headers: adminHeaders() }),
   customer: (phone) =>
     request(`/api/admin/customers/${encodeURIComponent(phone)}`, { headers: adminHeaders() }),
   markCallbackCalled: (id) =>
