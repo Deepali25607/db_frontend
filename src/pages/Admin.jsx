@@ -1112,7 +1112,8 @@ function AppearancePanel({ onSaved }) {
       <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
         Changes the background palette of the entire website — storefront and
         back office — the moment you pick one. Lettering, maroon and gold stay
-        on-brand in every theme.
+        on-brand in every theme. Visitors also get a ☾ switch in the header to
+        flip between your theme and the Midnight dark look for themselves.
       </p>
       {note && <p className="admin-note">{note}</p>}
       {error && <p className="form-error">{error}</p>}

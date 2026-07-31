@@ -30,6 +30,12 @@ export function StoreProvider({ children }) {
   const [content, setContent] = useState(null);
   const [toast, setToast] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  // visitor's own dark-mode choice: true/false once they tap the header
+  // switch, null = follow the admin-picked theme
+  const [darkPref, setDarkPref] = useState(() => {
+    const saved = localStorage.getItem("dpj_dark");
+    return saved === "1" ? true : saved === "0" ? false : null;
+  });
 
   useEffect(() => {
     localStorage.setItem("dpj_cart", JSON.stringify(cart));
@@ -55,11 +61,21 @@ export function StoreProvider({ children }) {
     api.content().then(setContent).catch(() => {});
   }, []);
 
-  // Appearance (admin-managed): the theme swaps background tokens site-wide,
-  // and an optional picture sits behind everything under a wash of the
-  // theme's surface colour so text stays readable.
+  // Appearance: the admin-picked theme swaps background tokens site-wide,
+  // an optional picture sits behind everything under a wash of the theme's
+  // surface colour, and the visitor's header switch overrides light/dark.
+  const dark = darkPref ?? (content?.theme === "midnight");
+  const toggleDark = useCallback(() => {
+    setDarkPref((prev) => {
+      const next = !(prev ?? document.documentElement.dataset.theme === "midnight");
+      localStorage.setItem("dpj_dark", next ? "1" : "0");
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
-    const theme = content?.theme || "heritage";
+    const picked = content?.theme || "heritage";
+    const theme = dark ? "midnight" : picked === "midnight" ? "heritage" : picked;
     if (theme === "heritage") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = theme;
 
@@ -76,7 +92,7 @@ export function StoreProvider({ children }) {
       body.style.backgroundPosition = "";
       body.style.backgroundAttachment = "";
     }
-  }, [content?.theme, content?.backgroundImage]);
+  }, [dark, content?.theme, content?.backgroundImage]);
 
   const showToast = useCallback((message) => {
     setToast(message);
@@ -147,6 +163,8 @@ export function StoreProvider({ children }) {
       toast,
       searchOpen,
       setSearchOpen,
+      dark,
+      toggleDark,
       cartCount: cart.reduce((n, l) => n + l.qty, 0),
       addToCart,
       updateQty,
@@ -164,6 +182,8 @@ export function StoreProvider({ children }) {
       content,
       toast,
       searchOpen,
+      dark,
+      toggleDark,
       addToCart,
       updateQty,
       removeFromCart,

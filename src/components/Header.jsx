@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
 import { formatINR } from "../lib/format";
-import { BagIcon, CloseIcon, HeartIcon, MenuIcon, SearchIcon, UserIcon } from "./Icons";
+import { BagIcon, CloseIcon, HeartIcon, MenuIcon, MoonIcon, SearchIcon, SunIcon, UserIcon } from "./Icons";
 
 function RateTicker() {
   const { rates } = useStore();
@@ -47,7 +47,7 @@ const DEFAULT_NAV = [
 ];
 
 export default function Header() {
-  const { cartCount, wishlist, setSearchOpen, content } = useStore();
+  const { cartCount, wishlist, setSearchOpen, content, dark, toggleDark } = useStore();
   const brandName = content?.companyName || "DP Jewellers";
   const brandTagline = content?.companyTagline || "Fine Jewellery";
   const navLinks =
@@ -116,6 +116,15 @@ export default function Header() {
           </Link>
 
           <div className="header-actions">
+            <button
+              className="icon-btn"
+              aria-label={dark ? "Switch to light look" : "Switch to dark look"}
+              aria-pressed={dark}
+              title={dark ? "Light look" : "Dark look"}
+              onClick={toggleDark}
+            >
+              {dark ? <SunIcon /> : <MoonIcon />}
+            </button>
             <button
               className="icon-btn"
               aria-label="Search"
