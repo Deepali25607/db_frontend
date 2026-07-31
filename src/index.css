@@ -125,6 +125,20 @@ body {
   line-height: 1.6;
 }
 
+/* Admin-uploaded site background (Appearance setting): painted on a fixed
+   underlay rather than body background-attachment:fixed, which phones ignore
+   or zoom against the whole document. --site-bg is stamped by StoreContext. */
+body.has-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--bg-wash), var(--bg-wash)),
+    var(--site-bg, none) center / cover no-repeat;
+}
+
 img {
   max-width: 100%;
   display: block;

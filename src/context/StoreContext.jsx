@@ -79,18 +79,15 @@ export function StoreProvider({ children }) {
     if (theme === "heritage") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = theme;
 
+    // the picture paints on a fixed body::before underlay (index.css) —
+    // body background-attachment:fixed is broken on real phones
     const img = (content?.backgroundImage || "").trim();
-    const body = document.body;
     if (img) {
-      body.style.backgroundImage = `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${img}")`;
-      body.style.backgroundSize = "cover";
-      body.style.backgroundPosition = "center";
-      body.style.backgroundAttachment = "fixed";
+      document.documentElement.style.setProperty("--site-bg", `url("${img}")`);
+      document.body.classList.add("has-bg");
     } else {
-      body.style.backgroundImage = "";
-      body.style.backgroundSize = "";
-      body.style.backgroundPosition = "";
-      body.style.backgroundAttachment = "";
+      document.documentElement.style.removeProperty("--site-bg");
+      document.body.classList.remove("has-bg");
     }
   }, [dark, content?.theme, content?.backgroundImage]);
 

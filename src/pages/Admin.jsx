@@ -1032,14 +1032,12 @@ function AppearancePanel({ onSaved }) {
 
   // applies the picture in this window immediately, ahead of the live refresh
   const stampBg = (img) => {
-    const body = document.body;
     if (img) {
-      body.style.backgroundImage = `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${img}")`;
-      body.style.backgroundSize = "cover";
-      body.style.backgroundPosition = "center";
-      body.style.backgroundAttachment = "fixed";
+      document.documentElement.style.setProperty("--site-bg", `url("${img}")`);
+      document.body.classList.add("has-bg");
     } else {
-      body.style.backgroundImage = "";
+      document.documentElement.style.removeProperty("--site-bg");
+      document.body.classList.remove("has-bg");
     }
   };
 
