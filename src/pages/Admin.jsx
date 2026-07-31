@@ -75,12 +75,19 @@ export default function Admin() {
 /* ---------------------------------------------------------- settings */
 function HeroMediaCard() {
   const [content, setContent] = useState(null);
+  const [slides, setSlides] = useState([]);
+  const [skus, setSkus] = useState([]);
+  const [slideUrl, setSlideUrl] = useState("");
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.content().then(setContent).catch((e) => setError(e.message));
+    api.content().then((c) => {
+      setContent(c);
+      setSlides(Array.isArray(c.heroSlides) ? c.heroSlides : []);
+    }).catch((e) => setError(e.message));
+    adminApi.products().then((rows) => setSkus(rows.filter((r) => r.published))).catch(() => {});
   }, []);
 
   const save = async (e) => {
@@ -90,10 +97,11 @@ function HeroMediaCard() {
     setNote(null);
     try {
       const res = await adminApi.patchContent({
-        heroImage: content.heroImage,
         heroVideo: content.heroVideo,
+        heroSlides: slides,
       });
       setContent(res.content);
+      setSlides(Array.isArray(res.content.heroSlides) ? res.content.heroSlides : []);
       setNote(res.changed === 0 ? "No changes." : "Saved — the homepage shows it immediately.");
     } catch (err) {
       setError(err.message);
@@ -102,7 +110,8 @@ function HeroMediaCard() {
     }
   };
 
-  const upload = (kind) => async (e) => {
+  // video: unchanged behaviour — upload applies immediately and wins over slides
+  const uploadVideo = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -115,12 +124,9 @@ function HeroMediaCard() {
     setNote(null);
     try {
       const { url } = await adminApi.uploadFile(file);
-      // what you upload is what plays — the other medium's URL is cleared
-      const res = await adminApi.patchContent(
-        kind === "video" ? { heroVideo: url, heroImage: "" } : { heroImage: url, heroVideo: "" }
-      );
+      const res = await adminApi.patchContent({ heroVideo: url, heroImage: "" });
       setContent(res.content);
-      setNote(`${kind === "video" ? "Video" : "Image"} uploaded — live on the homepage now.`);
+      setNote("Video uploaded — live on the homepage now.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -128,49 +134,124 @@ function HeroMediaCard() {
     }
   };
 
+  // images: multiple files become promotion slides (linked below, then saved)
+  const uploadSlides = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    if (slides.length + files.length > 6) {
+      setError("Up to 6 promotion slides on the homepage.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      for (const file of files) {
+        if (file.size > 100 * 1024 * 1024) throw new Error(`${file.name} is over 100 MB.`);
+        const { url } = await adminApi.uploadFile(file);
+        setSlides((prev) => [...prev, { image: url, slug: "" }]);
+      }
+      setNote("Images added below — link each to a piece, then Save.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addSlideUrl = () => {
+    const u = slideUrl.trim();
+    if (!u) return;
+    if (slides.length >= 6) {
+      setError("Up to 6 promotion slides on the homepage.");
+      return;
+    }
+    setSlides((prev) => [...prev, { image: u, slug: "" }]);
+    setSlideUrl("");
+  };
+
   if (!content) return null;
   return (
     <>
       <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
-        Upload straight from this computer — it applies immediately. Or paste a
-        full https:// URL below. Uploading a video clears the image (the video
-        plays instead); uploading an image clears the video. With both fields
-        empty, the homepage shows the house image.
+        <strong>Video</strong> — uploads apply immediately and play full-bleed
+        behind the headline. <strong>Promotion slides</strong> — upload one or
+        more images, link each to a piece, and the homepage rotates through
+        them; clicking a slide opens that product. The video, when set, wins
+        over the slides.
       </p>
       {note && <p className="admin-note">{note}</p>}
       {error && <p className="form-error">{error}</p>}
       <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginBottom: "1.1rem" }}>
         <label className="btn btn-outline" style={{ cursor: "pointer" }}>
-          {busy ? "Working…" : "⤒ Upload image…"}
-          <input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" hidden onChange={upload("image")} disabled={busy} />
+          {busy ? "Working…" : "⤒ Upload video…"}
+          <input type="file" accept="video/mp4,video/webm,video/quicktime" hidden onChange={uploadVideo} disabled={busy} />
         </label>
         <label className="btn btn-outline" style={{ cursor: "pointer" }}>
-          {busy ? "Working…" : "⤒ Upload video…"}
-          <input type="file" accept="video/mp4,video/webm,video/quicktime" hidden onChange={upload("video")} disabled={busy} />
+          {busy ? "Working…" : "⤒ Upload promotion images…"}
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" multiple hidden onChange={uploadSlides} disabled={busy} />
         </label>
       </div>
       <form className="checkout-form" onSubmit={save}>
         <div className="field">
-          <label>Hero image URL</label>
-          <input
-            value={content.heroImage}
-            onChange={(e) => setContent((c) => ({ ...c, heroImage: e.target.value }))}
-            placeholder="https://…/hero.jpg"
-          />
-        </div>
-        <div className="field">
-          <label>Hero video URL (optional — overrides the image)</label>
+          <label>Hero video URL (optional — overrides the slides)</label>
           <input
             value={content.heroVideo}
             onChange={(e) => setContent((c) => ({ ...c, heroVideo: e.target.value }))}
-            placeholder="https://…/hero.mp4 — leave empty to use the image"
+            placeholder="https://…/hero.mp4 — leave empty to run the promotion slides"
           />
+        </div>
+        {content.heroVideo && slides.length > 0 && (
+          <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
+            A video is set, so the slides are paused — clear the video field and
+            save to run the promotion.
+          </p>
+        )}
+        {slides.length > 0 && (
+          <div style={{ display: "grid", gap: "0.6rem" }}>
+            {slides.map((s, i) => (
+              <div key={`${s.image}-${i}`} style={{ display: "flex", gap: "0.7rem", alignItems: "center" }}>
+                <img src={s.image} alt="" style={{ width: 72, height: 48, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)", flex: "none" }} />
+                <select
+                  aria-label={`Product for slide ${i + 1}`}
+                  value={s.slug || ""}
+                  onChange={(e) => setSlides((prev) => prev.map((x, j) => (j === i ? { ...x, slug: e.target.value } : x)))}
+                  style={{ flex: 1, minWidth: 0 }}
+                >
+                  <option value="">No link — image only</option>
+                  {skus.map((p) => (
+                    <option key={p.slug} value={p.slug}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="remove-btn"
+                  onClick={() => setSlides((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: "0.6rem" }}>
+          <input
+            style={{ flex: 1 }}
+            value={slideUrl}
+            onChange={(e) => setSlideUrl(e.target.value)}
+            placeholder="…or paste an image URL and press Add"
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSlideUrl(); } }}
+          />
+          <button type="button" className="btn btn-outline" style={{ padding: "0.5rem 1rem" }} onClick={addSlideUrl} disabled={!slideUrl.trim()}>
+            Add
+          </button>
         </div>
         <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--line-soft)", background: "var(--cream-3)" }}>
           {content.heroVideo ? (
             <video key={content.heroVideo} src={content.heroVideo} muted autoPlay loop playsInline style={{ width: "100%", height: 150, objectFit: "cover", display: "block" }} />
-          ) : content.heroImage ? (
-            <img src={content.heroImage} alt="Hero preview" style={{ width: "100%", height: 150, objectFit: "cover", display: "block" }} />
+          ) : slides[0] ? (
+            <img src={slides[0].image} alt="Hero preview" style={{ width: "100%", height: 150, objectFit: "cover", display: "block" }} />
           ) : null}
         </div>
         <button className="btn btn-maroon" disabled={busy}>
@@ -926,8 +1007,12 @@ function Settings() {
       key: "hero",
       glyph: "▶",
       title: "Homepage hero media",
-      desc: "The image or looping video behind the homepage headline.",
-      chip: content?.heroVideo ? "video live" : "image live",
+      desc: "The looping video or clickable promotion slides behind the headline.",
+      chip: content?.heroVideo
+        ? "video live"
+        : content?.heroSlides?.length
+          ? `${content.heroSlides.length} promotion slide${content.heroSlides.length > 1 ? "s" : ""}`
+          : "image live",
     },
     {
       key: "backup",

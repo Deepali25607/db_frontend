@@ -32,6 +32,47 @@ const TESTIMONIALS = [
   },
 ];
 
+// Homepage promotion carousel (Settings → Homepage hero media): rotates
+// through the slides; clicking a slide opens the product it promotes.
+function HeroSlides({ slides }) {
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    if (slides.length < 2) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % slides.length), 5000);
+    return () => clearInterval(t);
+  }, [slides.length]);
+
+  return (
+    <>
+      {slides.map((s, i) => {
+        const cls = `hero-slide ${i === idx % slides.length ? "active" : ""}`;
+        const img = <img className="hero-img" src={s.image} alt="" aria-hidden={i !== idx} />;
+        return s.slug ? (
+          <Link key={`${s.image}-${i}`} to={`/product/${s.slug}`} className={cls} aria-label="View this piece">
+            {img}
+          </Link>
+        ) : (
+          <div key={`${s.image}-${i}`} className={cls}>{img}</div>
+        );
+      })}
+      {slides.length > 1 && (
+        <div className="hero-dots" role="tablist" aria-label="Promotion slides">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              className={i === idx % slides.length ? "on" : ""}
+              onClick={() => setIdx(i)}
+              aria-label={`Show slide ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function Home() {
   const [featured, setFeatured] = useState(null);
   const [categories, setCategories] = useState(null);
@@ -71,6 +112,8 @@ export default function Home() {
             playsInline
             aria-hidden
           />
+        ) : Array.isArray(content?.heroSlides) && content.heroSlides.length > 0 ? (
+          <HeroSlides slides={content.heroSlides} />
         ) : (
           <img className="hero-img" src={content?.heroImage || HERO_IMAGE} alt="" aria-hidden />
         )}
