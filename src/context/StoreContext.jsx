@@ -55,6 +55,13 @@ export function StoreProvider({ children }) {
     api.content().then(setContent).catch(() => {});
   }, []);
 
+  // Appearance (admin-managed): the theme swaps background tokens site-wide
+  useEffect(() => {
+    const theme = content?.theme || "heritage";
+    if (theme === "heritage") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = theme;
+  }, [content?.theme]);
+
   const showToast = useCallback((message) => {
     setToast(message);
     window.clearTimeout(showToast._t);

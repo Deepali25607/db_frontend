@@ -28,6 +28,34 @@
   --radius: 18px;
 }
 
+/* ---- Appearance (Admin → Settings): background themes swap the surface
+   tokens site-wide; ink, maroon and gold stay on-brand. "heritage" is the
+   default :root palette above. */
+:root[data-theme="pearl"] {
+  --cream: #f6f4ef;
+  --cream-2: #eeebe1;
+  --cream-3: #e5e1d3;
+  --paper: #fcfbf7;
+}
+:root[data-theme="champagne"] {
+  --cream: #f6edd2;
+  --cream-2: #efe2ba;
+  --cream-3: #e7d7a4;
+  --paper: #fbf4e0;
+}
+:root[data-theme="sage"] {
+  --cream: #eff2e4;
+  --cream-2: #e4e9d3;
+  --cream-3: #d9dfc2;
+  --paper: #f7f9ef;
+}
+:root[data-theme="blush"] {
+  --cream: #f8efe8;
+  --cream-2: #f1e2d6;
+  --cream-3: #e9d4c4;
+  --paper: #fcf6f0;
+}
+
 * {
   margin: 0;
   padding: 0;

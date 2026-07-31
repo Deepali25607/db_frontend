@@ -716,6 +716,90 @@ function PdpDetailsPanel({ config, onSaved }) {
   );
 }
 
+/* Appearance — curated background palettes; keys must match the
+   :root[data-theme=…] blocks in index.css and SITE_THEMES on the server. */
+const SITE_THEMES = [
+  { key: "heritage", name: "Heritage Cream", desc: "The house look — warm cream and parchment.", swatches: ["#f6efde", "#fbf6ea", "#e9dec0"] },
+  { key: "pearl", name: "Pearl", desc: "Cooler ivory — quieter, gallery-like.", swatches: ["#f6f4ef", "#fcfbf7", "#e5e1d3"] },
+  { key: "champagne", name: "Champagne", desc: "A golden pour — festive and warm.", swatches: ["#f6edd2", "#fbf4e0", "#e7d7a4"] },
+  { key: "sage", name: "Sage", desc: "Soft green-tinted ivory — fresh, botanical.", swatches: ["#eff2e4", "#f7f9ef", "#d9dfc2"] },
+  { key: "blush", name: "Blush", desc: "Rosy ivory — bridal and romantic.", swatches: ["#f8efe8", "#fcf6f0", "#e9d4c4"] },
+];
+
+function AppearancePanel({ onSaved }) {
+  const [theme, setTheme] = useState(null);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.content().then((c) => setTheme(c.theme || "heritage")).catch((e) => setError(e.message));
+  }, []);
+
+  const apply = async (key) => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      await adminApi.patchContent({ theme: key });
+      setTheme(key);
+      // reflect immediately in this very window, ahead of the live refresh
+      if (key === "heritage") delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = key;
+      setNote(`${SITE_THEMES.find((t) => t.key === key).name} is live across the site.`);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && theme === null) return <p className="form-error">{error}</p>;
+  if (theme === null) return <div className="skeleton" style={{ height: 240 }} />;
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        Changes the background palette of the entire website — storefront and
+        back office — the moment you pick one. Lettering, maroon and gold stay
+        on-brand in every theme.
+      </p>
+      {note && <p className="admin-note">{note}</p>}
+      {error && <p className="form-error">{error}</p>}
+      <div style={{ display: "grid", gap: "0.7rem" }}>
+        {SITE_THEMES.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => apply(t.key)}
+            disabled={busy}
+            aria-pressed={theme === t.key}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.9rem", textAlign: "left",
+              padding: "0.8rem 1rem", cursor: "pointer", background: "var(--paper)",
+              border: theme === t.key ? "2px solid var(--gold)" : "1px solid var(--line)",
+              borderRadius: 12, font: "inherit", color: "inherit",
+            }}
+          >
+            <span style={{ display: "flex", flex: "none" }}>
+              {t.swatches.map((c) => (
+                <span key={c} style={{ width: 26, height: 26, borderRadius: "50%", background: c, border: "1px solid rgba(35,33,26,0.15)", marginLeft: c === t.swatches[0] ? 0 : -8 }} />
+              ))}
+            </span>
+            <span>
+              <strong style={{ display: "block", fontSize: "0.95rem" }}>
+                {t.name}{t.key === "heritage" ? " · default" : ""}{theme === t.key ? " — live" : ""}
+              </strong>
+              <span className="muted" style={{ fontSize: "0.8rem" }}>{t.desc}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SupportPanel({ onSaved }) {
   const [content, setContent] = useState(null);
   const [error, setError] = useState(null);
@@ -1006,6 +1090,15 @@ function Settings() {
       })(),
     },
     {
+      key: "appearance",
+      glyph: "◐",
+      title: "Appearance",
+      desc: "The background palette of the entire website, storefront and admin.",
+      chip: (content?.theme && content.theme !== "heritage")
+        ? content.theme.charAt(0).toUpperCase() + content.theme.slice(1)
+        : "Heritage Cream",
+    },
+    {
       key: "hero",
       glyph: "▶",
       title: "Homepage hero media",
@@ -1046,6 +1139,7 @@ function Settings() {
         {view === "branding" && <BrandingPanel onSaved={refresh} />}
         {view === "support" && <SupportPanel onSaved={refresh} />}
         {view === "policy" && <OrderPolicyPanel config={data.config} onSaved={refresh} />}
+        {view === "appearance" && <AppearancePanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}
         {view === "discounts" && <DiscountsPanel config={data.config} onSaved={refresh} />}
         {view === "hero" && <div style={{ maxWidth: 560 }}><HeroMediaCard /></div>}
