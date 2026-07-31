@@ -55,12 +55,28 @@ export function StoreProvider({ children }) {
     api.content().then(setContent).catch(() => {});
   }, []);
 
-  // Appearance (admin-managed): the theme swaps background tokens site-wide
+  // Appearance (admin-managed): the theme swaps background tokens site-wide,
+  // and an optional picture sits behind everything under a wash of the
+  // theme's surface colour so text stays readable.
   useEffect(() => {
     const theme = content?.theme || "heritage";
     if (theme === "heritage") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = theme;
-  }, [content?.theme]);
+
+    const img = (content?.backgroundImage || "").trim();
+    const body = document.body;
+    if (img) {
+      body.style.backgroundImage = `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${img}")`;
+      body.style.backgroundSize = "cover";
+      body.style.backgroundPosition = "center";
+      body.style.backgroundAttachment = "fixed";
+    } else {
+      body.style.backgroundImage = "";
+      body.style.backgroundSize = "";
+      body.style.backgroundPosition = "";
+      body.style.backgroundAttachment = "";
+    }
+  }, [content?.theme, content?.backgroundImage]);
 
   const showToast = useCallback((message) => {
     setToast(message);

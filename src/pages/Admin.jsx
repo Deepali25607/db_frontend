@@ -728,13 +728,72 @@ const SITE_THEMES = [
 
 function AppearancePanel({ onSaved }) {
   const [theme, setTheme] = useState(null);
+  const [bgImage, setBgImage] = useState("");
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.content().then((c) => setTheme(c.theme || "heritage")).catch((e) => setError(e.message));
+    api.content().then((c) => {
+      setTheme(c.theme || "heritage");
+      setBgImage(c.backgroundImage || "");
+    }).catch((e) => setError(e.message));
   }, []);
+
+  // applies the picture in this window immediately, ahead of the live refresh
+  const stampBg = (img) => {
+    const body = document.body;
+    if (img) {
+      body.style.backgroundImage = `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${img}")`;
+      body.style.backgroundSize = "cover";
+      body.style.backgroundPosition = "center";
+      body.style.backgroundAttachment = "fixed";
+    } else {
+      body.style.backgroundImage = "";
+    }
+  };
+
+  const uploadBg = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      setError("Keep the picture under 100 MB.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const { url } = await adminApi.uploadFile(file);
+      await adminApi.patchContent({ backgroundImage: url });
+      setBgImage(url);
+      stampBg(url);
+      setNote("Background picture is live across the site — it sits under a soft wash of the theme colour so text stays readable.");
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearBg = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      await adminApi.patchContent({ backgroundImage: "" });
+      setBgImage("");
+      stampBg("");
+      setNote("Background picture removed — back to the plain theme.");
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const apply = async (key) => {
     setBusy(true);
@@ -795,6 +854,27 @@ function AppearancePanel({ onSaved }) {
             </span>
           </button>
         ))}
+      </div>
+
+      <h3 className="admin-subhead" style={{ marginTop: "1.6rem" }}>Background picture</h3>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "0.9rem" }}>
+        Optional — a picture from your computer shown behind the whole site,
+        softened by a wash of the theme colour above. Remove it any time to go
+        back to the plain theme.
+      </p>
+      <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", alignItems: "center" }}>
+        <label className="btn btn-outline" style={{ cursor: "pointer", padding: "0.5rem 1.1rem" }}>
+          {busy ? "Working…" : "⤒ Upload background picture…"}
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" hidden onChange={uploadBg} disabled={busy} />
+        </label>
+        {bgImage && (
+          <>
+            <img src={bgImage} alt="Background preview" style={{ width: 96, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
+            <button type="button" className="remove-btn" onClick={clearBg} disabled={busy}>
+              Remove picture
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1094,9 +1174,10 @@ function Settings() {
       glyph: "◐",
       title: "Appearance",
       desc: "The background palette of the entire website, storefront and admin.",
-      chip: (content?.theme && content.theme !== "heritage")
-        ? content.theme.charAt(0).toUpperCase() + content.theme.slice(1)
-        : "Heritage Cream",
+      chip:
+        ((content?.theme && content.theme !== "heritage")
+          ? content.theme.charAt(0).toUpperCase() + content.theme.slice(1)
+          : "Heritage Cream") + (content?.backgroundImage ? " + picture" : ""),
     },
     {
       key: "hero",

@@ -24,6 +24,9 @@
   --serif: "Playfair Display", "Georgia", serif;
   --sans: "Jost", "Segoe UI", sans-serif;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* translucent wash laid over an admin-uploaded background picture —
+     follows the active theme's surface colour */
+  --bg-wash: color-mix(in srgb, var(--cream) 88%, transparent);
   --shadow-card: 0 18px 40px -22px rgba(56, 7, 15, 0.35);
   --radius: 18px;
 }
