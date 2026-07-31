@@ -37,10 +37,23 @@ function RateTicker() {
   );
 }
 
+// fallback while /api/content loads — mirrors DEFAULT_CONTENT.navLinks
+const DEFAULT_NAV = [
+  { label: "Home", path: "/" },
+  { label: "Shop", path: "/shop" },
+  { label: "Gold Scheme", path: "/gold-scheme" },
+  { label: "Custom", path: "/custom" },
+  { label: "The House", path: "/#maison" },
+];
+
 export default function Header() {
   const { cartCount, wishlist, setSearchOpen, content } = useStore();
   const brandName = content?.companyName || "DP Jewellers";
   const brandTagline = content?.companyTagline || "Fine Jewellery";
+  const navLinks =
+    Array.isArray(content?.navLinks) && content.navLinks.length > 0
+      ? content.navLinks
+      : DEFAULT_NAV;
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -67,21 +80,26 @@ export default function Header() {
           </button>
 
           <nav className={`nav-main ${menuOpen ? "open" : ""}`} onClick={closeMenu}>
-            <NavLink to="/" end className={navLink}>
-              Home
-            </NavLink>
-            <NavLink to="/shop" className={navLink}>
-              Shop
-            </NavLink>
-            <NavLink to="/gold-scheme" className={navLink}>
-              Gold Scheme
-            </NavLink>
-            <NavLink to="/custom" className={navLink}>
-              Custom
-            </NavLink>
-            <NavLink to="/#maison" className={() => undefined}>
-              The House
-            </NavLink>
+            {navLinks.map((l) =>
+              /^https?:\/\//i.test(l.path) ? (
+                <a key={`${l.label}-${l.path}`} href={l.path} target="_blank" rel="noreferrer">
+                  {l.label}
+                </a>
+              ) : l.path.includes("#") ? (
+                <NavLink key={`${l.label}-${l.path}`} to={l.path} className={() => undefined}>
+                  {l.label}
+                </NavLink>
+              ) : (
+                <NavLink
+                  key={`${l.label}-${l.path}`}
+                  to={l.path}
+                  end={l.path === "/"}
+                  className={navLink}
+                >
+                  {l.label}
+                </NavLink>
+              )
+            )}
           </nav>
 
           <Link to="/" className="logo" aria-label={`${brandName} home`}>

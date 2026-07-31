@@ -716,6 +716,211 @@ function PdpDetailsPanel({ config, onSaved }) {
   );
 }
 
+/* Header & footer — nav links, footer blurb and link columns, editable
+   without code. Empty lists restore the house defaults server-side. */
+const KNOWN_PATHS = [
+  "/", "/shop", "/shop?occasion=wedding", "/shop?category=rings",
+  "/shop?category=necklaces", "/shop?category=earrings", "/gold-scheme",
+  "/custom", "/track", "/stores", "/appointments", "/guides", "/old-gold",
+  "/account", "/wishlist", "/cart", "/policies", "/#maison",
+];
+
+function LinkRow({ link, labelMax, onChange, onRemove, className = "" }) {
+  return (
+    <div className={className} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+      <input
+        style={{ flex: "0 1 180px" }}
+        placeholder="Label"
+        maxLength={labelMax}
+        value={link.label}
+        onChange={(e) => onChange({ ...link, label: e.target.value })}
+      />
+      <input
+        style={{ flex: "1 1 200px" }}
+        placeholder="/path or https://…"
+        list="hf-known-paths"
+        value={link.path}
+        onChange={(e) => onChange({ ...link, path: e.target.value })}
+      />
+      <button type="button" className="remove-btn" onClick={onRemove} aria-label="Remove link">✕</button>
+    </div>
+  );
+}
+
+function HeaderFooterPanel({ onSaved }) {
+  const [nav, setNav] = useState(null);
+  const [blurb, setBlurb] = useState("");
+  const [cols, setCols] = useState([]);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.content().then((c) => {
+      setNav(Array.isArray(c.navLinks) ? c.navLinks : []);
+      setBlurb(c.footerBlurb || "");
+      setCols(Array.isArray(c.footerColumns) ? c.footerColumns : []);
+    }).catch((e) => setError(e.message));
+  }, []);
+
+  const save = async (restore = false) => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const res = await adminApi.patchContent(
+        restore
+          ? { navLinks: [], footerColumns: [], footerBlurb: "" }
+          : { navLinks: nav, footerBlurb: blurb, footerColumns: cols }
+      );
+      setNav(res.content.navLinks);
+      setBlurb(res.content.footerBlurb);
+      setCols(res.content.footerColumns);
+      setNote(
+        res.changed === 0
+          ? "No changes."
+          : restore
+            ? "Restored the standard header & footer — live everywhere."
+            : "Saved — the header and footer update across the site immediately."
+      );
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && nav === null) return <p className="form-error">{error}</p>;
+  if (nav === null) return <div className="skeleton" style={{ height: 300 }} />;
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        The header menu and footer are yours to arrange — links can point to any
+        page of this site (/path) or an outside https:// address. The legal row
+        and the support contacts (Customer support setting) stay automatic.
+      </p>
+      {note && <p className="admin-note">{note}</p>}
+      {error && <p className="form-error">{error}</p>}
+      <datalist id="hf-known-paths">
+        {KNOWN_PATHS.map((p) => <option key={p} value={p} />)}
+      </datalist>
+
+      <form className="checkout-form" onSubmit={(e) => { e.preventDefault(); save(false); }}>
+        <h3 className="admin-subhead" style={{ margin: 0 }}>Header menu ({nav.length}/7)</h3>
+        {nav.map((l, i) => (
+          <LinkRow
+            key={i}
+            link={l}
+            className="hf-nav-row"
+            labelMax={24}
+            onChange={(next) => setNav((prev) => prev.map((x, j) => (j === i ? next : x)))}
+            onRemove={() => setNav((prev) => prev.filter((_, j) => j !== i))}
+          />
+        ))}
+        {nav.length < 7 && (
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ padding: "0.4rem 1rem", justifySelf: "start" }}
+            onClick={() => setNav((prev) => [...prev, { label: "", path: "/" }])}
+          >
+            + Add menu link
+          </button>
+        )}
+
+        <h3 className="admin-subhead" style={{ margin: "1rem 0 0" }}>Footer</h3>
+        <div className="field">
+          <label htmlFor="hf-blurb">
+            Brand paragraph{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              — under the logo. Leave empty to restore the original wording.
+            </span>
+          </label>
+          <textarea
+            id="hf-blurb"
+            rows={2}
+            maxLength={300}
+            value={blurb}
+            onChange={(e) => setBlurb(e.target.value)}
+          />
+        </div>
+
+        {cols.map((col, i) => (
+          <div
+            key={i}
+            style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "0.9rem", display: "grid", gap: "0.55rem" }}
+          >
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <input
+                style={{ flex: "0 1 220px", fontWeight: 600 }}
+                placeholder="Column title"
+                maxLength={30}
+                value={col.title}
+                onChange={(e) => setCols((prev) => prev.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))}
+              />
+              <button
+                type="button"
+                className="remove-btn"
+                style={{ marginLeft: "auto" }}
+                onClick={() => setCols((prev) => prev.filter((_, j) => j !== i))}
+              >
+                Remove column
+              </button>
+            </div>
+            {col.links.map((l, k) => (
+              <LinkRow
+                key={k}
+                link={l}
+                className="hf-col-row"
+                labelMax={40}
+                onChange={(next) =>
+                  setCols((prev) => prev.map((x, j) => (j === i ? { ...x, links: x.links.map((y, m) => (m === k ? next : y)) } : x)))
+                }
+                onRemove={() =>
+                  setCols((prev) => prev.map((x, j) => (j === i ? { ...x, links: x.links.filter((_, m) => m !== k) } : x)))
+                }
+              />
+            ))}
+            {col.links.length < 8 && (
+              <button
+                type="button"
+                className="remove-btn"
+                style={{ justifySelf: "start" }}
+                onClick={() =>
+                  setCols((prev) => prev.map((x, j) => (j === i ? { ...x, links: [...x.links, { label: "", path: "/" }] } : x)))
+                }
+              >
+                + Add link
+              </button>
+            )}
+          </div>
+        ))}
+        {cols.length < 4 && (
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ padding: "0.4rem 1rem", justifySelf: "start" }}
+            onClick={() => setCols((prev) => [...prev, { title: "", links: [{ label: "", path: "/" }] }])}
+          >
+            + Add footer column
+          </button>
+        )}
+
+        <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap" }}>
+          <button className="btn btn-maroon" disabled={busy}>
+            {busy ? "Saving…" : "Save header & footer"}
+          </button>
+          <button type="button" className="btn btn-outline" disabled={busy} onClick={() => save(true)}>
+            Restore standard layout
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /* Appearance — curated background palettes; keys must match the
    :root[data-theme=…] blocks in index.css and SITE_THEMES on the server. */
 const SITE_THEMES = [
@@ -1170,6 +1375,13 @@ function Settings() {
       })(),
     },
     {
+      key: "headerfooter",
+      glyph: "⌘",
+      title: "Header & footer",
+      desc: "The menu links, footer paragraph and footer link columns.",
+      chip: `${content?.navLinks?.length ?? 5} menu links · ${content?.footerColumns?.length ?? 3} columns`,
+    },
+    {
       key: "appearance",
       glyph: "◐",
       title: "Appearance",
@@ -1221,6 +1433,7 @@ function Settings() {
         {view === "support" && <SupportPanel onSaved={refresh} />}
         {view === "policy" && <OrderPolicyPanel config={data.config} onSaved={refresh} />}
         {view === "appearance" && <AppearancePanel onSaved={refresh} />}
+        {view === "headerfooter" && <HeaderFooterPanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}
         {view === "discounts" && <DiscountsPanel config={data.config} onSaved={refresh} />}
         {view === "hero" && <div style={{ maxWidth: 560 }}><HeroMediaCard /></div>}
