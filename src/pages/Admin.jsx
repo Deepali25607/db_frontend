@@ -747,10 +747,67 @@ function LinkRow({ link, labelMax, onChange, onRemove, className = "" }) {
   );
 }
 
+// Upload-from-disk control for one background field (header or footer bar).
+function BgUploadRow({ label, field, value, onApplied, onError, busy, setBusy }) {
+  const upload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      onError("Keep the picture under 100 MB.");
+      return;
+    }
+    setBusy(true);
+    onError(null);
+    try {
+      const { url } = await adminApi.uploadFile(file);
+      await adminApi.patchContent({ [field]: url });
+      onApplied(url);
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clear = async () => {
+    setBusy(true);
+    onError(null);
+    try {
+      await adminApi.patchContent({ [field]: "" });
+      onApplied("");
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", alignItems: "center" }}>
+      <span style={{ flex: "0 0 150px", fontSize: "0.86rem", fontWeight: 600 }}>{label}</span>
+      <label className="btn btn-outline" style={{ cursor: "pointer", padding: "0.4rem 1rem" }}>
+        {busy ? "Working…" : "⤒ Upload picture…"}
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" hidden onChange={upload} disabled={busy} />
+      </label>
+      {value ? (
+        <>
+          <img src={value} alt={`${label} preview`} style={{ width: 84, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)" }} />
+          <button type="button" className="remove-btn" onClick={clear} disabled={busy}>Remove picture</button>
+        </>
+      ) : (
+        <span className="muted" style={{ fontSize: "0.8rem" }}>plain surface</span>
+      )}
+    </div>
+  );
+}
+
 function HeaderFooterPanel({ onSaved }) {
   const [nav, setNav] = useState(null);
   const [blurb, setBlurb] = useState("");
   const [cols, setCols] = useState([]);
+  const [headerBg, setHeaderBg] = useState("");
+  const [footerBg, setFooterBg] = useState("");
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -760,6 +817,8 @@ function HeaderFooterPanel({ onSaved }) {
       setNav(Array.isArray(c.navLinks) ? c.navLinks : []);
       setBlurb(c.footerBlurb || "");
       setCols(Array.isArray(c.footerColumns) ? c.footerColumns : []);
+      setHeaderBg(c.headerBgImage || "");
+      setFooterBg(c.footerBgImage || "");
     }).catch((e) => setError(e.message));
   }, []);
 
@@ -907,6 +966,31 @@ function HeaderFooterPanel({ onSaved }) {
             + Add footer column
           </button>
         )}
+
+        <h3 className="admin-subhead" style={{ margin: "1rem 0 0" }}>Backgrounds</h3>
+        <p className="muted" style={{ fontSize: "0.8rem", margin: 0 }}>
+          Pictures from your computer behind the header bar and the footer —
+          shown under the same soft wash as the site background. These apply the
+          moment the upload finishes.
+        </p>
+        <BgUploadRow
+          label="Header background"
+          field="headerBgImage"
+          value={headerBg}
+          onApplied={(url) => { setHeaderBg(url); setNote(url ? "Header background is live." : "Header back to the plain surface."); onSaved(); }}
+          onError={setError}
+          busy={busy}
+          setBusy={setBusy}
+        />
+        <BgUploadRow
+          label="Footer background"
+          field="footerBgImage"
+          value={footerBg}
+          onApplied={(url) => { setFooterBg(url); setNote(url ? "Footer background is live." : "Footer back to the plain surface."); onSaved(); }}
+          onError={setError}
+          busy={busy}
+          setBusy={setBusy}
+        />
 
         <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap" }}>
           <button className="btn btn-maroon" disabled={busy}>

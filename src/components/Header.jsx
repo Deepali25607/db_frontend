@@ -54,6 +54,7 @@ export default function Header() {
     Array.isArray(content?.navLinks) && content.navLinks.length > 0
       ? content.navLinks
       : DEFAULT_NAV;
+  const headerBg = (content?.headerBgImage || "").trim();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -69,7 +70,14 @@ export default function Header() {
   return (
     <>
       <RateTicker />
-      <header className={`site-header ${scrolled ? "scrolled" : ""}`}>
+      <header
+        className={`site-header ${scrolled ? "scrolled" : ""}`}
+        style={
+          headerBg
+            ? { background: `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${headerBg}") center/cover` }
+            : undefined
+        }
+      >
         <div className="container header-inner">
           <button
             className="icon-btn menu-toggle"

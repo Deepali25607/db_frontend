@@ -56,9 +56,17 @@ export default function Footer() {
     Array.isArray(content?.footerColumns) && content.footerColumns.length > 0
       ? content.footerColumns
       : DEFAULT_COLUMNS;
+  const footerBg = (content?.footerBgImage || "").trim();
 
   return (
-    <footer className="site-footer">
+    <footer
+      className="site-footer"
+      style={
+        footerBg
+          ? { background: `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${footerBg}") center/cover` }
+          : undefined
+      }
+    >
       <div className="container">
         <div className="footer-grid">
           <div className="footer-brand">
