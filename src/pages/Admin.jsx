@@ -554,6 +554,184 @@ function OrderPolicyPanel({ config, onSaved }) {
   );
 }
 
+/* Targeted discount rules — the flexible engine beneath the flat site-wide
+   markdown. Each rule picks its base (whole price or making charges only),
+   its conditions, audience, validity window and priority; the server always
+   applies exactly ONE discount per piece: highest priority, then the
+   largest saving, with the site-wide/per-piece markdown competing at
+   priority 0. */
+const RULE_AUDIENCE_OPTIONS = [
+  ["all", "Everyone"],
+  ["scheme", "Gold-scheme holders (applies at billing)"],
+  ["first", "First order (applies at billing)"],
+  ["returning", "Returning customers (applies at billing)"],
+];
+
+function DiscountRulesEditor({ onSaved }) {
+  const [rows, setRows] = useState(null);
+  const [cats, setCats] = useState([]);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    adminApi.discountRules().then((d) => setRows(d.rules.map((r) => ({ ...r })))).catch((e) => setError(e.message));
+    api.categories().then((c) => setCats(c.map((x) => x.key))).catch(() => {});
+  }, []);
+
+  const set = (i, field, value) => {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [field]: value } : r)));
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const { rules } = await adminApi.patchDiscountRules(
+        rows.map((r) => ({ ...r, pct: Number(r.pct), minTotal: Number(r.minTotal || 0), priority: Number(r.priority || 0) }))
+      );
+      setRows(rules.map((r) => ({ ...r })));
+      setNote(rules.length === 0 ? "All rules removed — only the flat markdowns above remain." : "Rules saved — prices across the site follow them immediately.");
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && rows === null) return <p className="form-error">{error}</p>;
+  if (rows === null) return <div className="skeleton" style={{ height: 120, marginTop: "1.6rem" }} />;
+
+  const lbl = { display: "grid", gap: "0.2rem", fontSize: "0.68rem", color: "var(--ink-faint)", textTransform: "uppercase", letterSpacing: "0.06em" };
+
+  return (
+    <div style={{ marginTop: "2rem" }}>
+      <h3 className="admin-subhead">Discount rules</h3>
+      <p className="muted" style={{ fontSize: "0.82rem", marginBottom: "0.9rem" }}>
+        Targeted offers beyond the flat markdown: off the whole price or the
+        making charges only, filtered by metal, purity, category, collection,
+        occasion or minimum value, limited to an audience and a date window.
+        A piece still gets exactly <strong>one</strong> discount — the highest
+        priority wins, then the biggest saving; the flat markdowns above
+        compete at priority 0. The rule's name appears on the price break-up.
+      </p>
+      {note && <p className="admin-note">{note}</p>}
+      {error && rows !== null && <p className="form-error">{error}</p>}
+
+      <div style={{ display: "grid", gap: "0.9rem" }}>
+        {rows.map((r, i) => (
+          <div key={i} className="dr-row" style={{ display: "grid", gap: "0.55rem", padding: "0.9rem 1rem", background: "var(--paper)", border: "1px solid var(--line-soft)", borderRadius: 12, opacity: r.on === false ? 0.65 : 1 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "auto 2fr 70px 1.4fr 90px", gap: "0.55rem", alignItems: "end" }}>
+              <label style={{ ...lbl, textAlign: "center" }}>
+                Active
+                <input type="checkbox" checked={r.on !== false} onChange={(e) => set(i, "on", e.target.checked)} style={{ height: 38 }} />
+              </label>
+              <label style={lbl}>
+                Rule name (shown to customers)
+                <input value={r.name} onChange={(e) => set(i, "name", e.target.value)} placeholder="e.g. Diwali making offer" maxLength={40} />
+              </label>
+              <label style={lbl}>
+                % off
+                <input type="number" min={1} max={75} value={r.pct} onChange={(e) => set(i, "pct", e.target.value)} />
+              </label>
+              <label style={lbl}>
+                Comes off
+                <select value={r.target} onChange={(e) => set(i, "target", e.target.value)}>
+                  <option value="price">Whole price</option>
+                  <option value="making">Making charges only</option>
+                </select>
+              </label>
+              <label style={lbl}>
+                Priority
+                <input type="number" min={0} max={100} value={r.priority} onChange={(e) => set(i, "priority", e.target.value)} />
+              </label>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", gap: "0.55rem" }}>
+              <label style={lbl}>
+                Audience
+                <select value={r.audience} onChange={(e) => set(i, "audience", e.target.value)}>
+                  {RULE_AUDIENCE_OPTIONS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                </select>
+              </label>
+              <label style={lbl}>
+                Metal
+                <select value={r.metal} onChange={(e) => set(i, "metal", e.target.value)}>
+                  <option value="">Any metal</option>
+                  <option value="gold">Gold</option>
+                  <option value="silver">Silver</option>
+                  <option value="platinum">Platinum</option>
+                </select>
+              </label>
+              <label style={lbl}>
+                Purity
+                <input value={r.purity} onChange={(e) => set(i, "purity", e.target.value)} placeholder="Any — e.g. 22K" list="dr-purities" />
+              </label>
+              <label style={lbl}>
+                Category
+                <input value={r.category} onChange={(e) => set(i, "category", e.target.value)} placeholder="Any" list="dr-categories" />
+              </label>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr auto", gap: "0.55rem", alignItems: "end" }}>
+              <label style={lbl}>
+                Collection
+                <input value={r.collection} onChange={(e) => set(i, "collection", e.target.value)} placeholder="Any" maxLength={40} />
+              </label>
+              <label style={lbl}>
+                Occasion
+                <input value={r.occasion} onChange={(e) => set(i, "occasion", e.target.value)} placeholder="Any — e.g. wedding" list="dr-occasions" />
+              </label>
+              <label style={lbl}>
+                Min value ₹
+                <input type="number" min={0} step={1000} value={r.minTotal} onChange={(e) => set(i, "minTotal", e.target.value)} />
+              </label>
+              <label style={lbl}>
+                Valid from
+                <input type="date" value={r.startsAt} onChange={(e) => set(i, "startsAt", e.target.value)} />
+              </label>
+              <label style={lbl}>
+                Until (incl.)
+                <input type="date" value={r.endsAt} onChange={(e) => set(i, "endsAt", e.target.value)} />
+              </label>
+              <button type="button" className="btn btn-outline" style={{ padding: "0.45rem 0.9rem" }} disabled={busy} onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}>
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <p className="muted" style={{ fontSize: "0.84rem" }}>No rules yet — only the flat markdowns above apply.</p>
+        )}
+      </div>
+      <datalist id="dr-purities">
+        {["24K", "22K", "18K", "14K", "925", "PT950"].map((p) => <option key={p} value={p} />)}
+      </datalist>
+      <datalist id="dr-categories">
+        {cats.map((c) => <option key={c} value={c} />)}
+      </datalist>
+      <datalist id="dr-occasions">
+        {["wedding", "festive", "daily", "party", "gifting", "office"].map((o) => <option key={o} value={o} />)}
+      </datalist>
+
+      <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginTop: "1.1rem" }}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          style={{ padding: "0.5rem 1.1rem" }}
+          disabled={busy || rows.length >= 20}
+          onClick={() => setRows((prev) => [...prev, { name: "", on: true, pct: 10, target: "price", audience: "all", metal: "", purity: "", category: "", collection: "", occasion: "", minTotal: 0, priority: 0, startsAt: "", endsAt: "" }])}
+        >
+          + Add a rule
+        </button>
+        <button type="button" className="btn btn-maroon" style={{ padding: "0.5rem 1.4rem" }} disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save rules"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DiscountsPanel({ config, onSaved }) {
   const [on, setOn] = useState(config.siteDiscountOn === 1);
   const [pct, setPct] = useState(String(config.siteDiscountPct ?? 0));
@@ -620,14 +798,17 @@ function DiscountsPanel({ config, onSaved }) {
         </div>
         <p className="muted" style={{ fontSize: "0.8rem" }}>
           <strong>How discounts combine:</strong> a piece is never discounted
-          twice — the customer pays the largest single percentage among this
-          site-wide setting and any per-piece discount. Coupons at checkout
-          apply on top of the marked price, as today.
+          twice — one winner among this site-wide setting, any per-piece
+          discount and the rules below (highest priority, then biggest
+          saving). Coupons at checkout apply on top of the marked price, as
+          today.
         </p>
         <button className="btn btn-maroon" disabled={busy}>
           {busy ? "Saving…" : "Save discount"}
         </button>
       </form>
+
+      <DiscountRulesEditor onSaved={onSaved} />
     </div>
   );
 }
@@ -1732,6 +1913,7 @@ function Settings() {
   const [storeRows, setStoreRows] = useState(null);
   const [emiPlans, setEmiPlans] = useState(null);
   const [schemeVariants, setSchemeVariants] = useState(null);
+  const [discountRules, setDiscountRules] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState(null); // null = hub
 
@@ -1742,6 +1924,7 @@ function Settings() {
     api.stores().then((d) => setStoreRows(d.stores)).catch(() => {});
     api.config().then((c) => setEmiPlans(c.emiPlans || [])).catch(() => {});
     api.schemes().then(setSchemeVariants).catch(() => {});
+    adminApi.discountRules().then((d) => setDiscountRules(d.rules)).catch(() => {});
   }, []);
 
   useEffect(refresh, [refresh]);
@@ -1824,10 +2007,14 @@ function Settings() {
       glyph: "%",
       title: "Discounts",
       desc: "Site-wide markdown applied to every published piece, priced live.",
-      chip:
-        data.config.siteDiscountOn === 1 && data.config.siteDiscountPct > 0
-          ? `${data.config.siteDiscountPct}% off site-wide`
-          : "no markdown",
+      chip: (() => {
+        const flat =
+          data.config.siteDiscountOn === 1 && data.config.siteDiscountPct > 0
+            ? `${data.config.siteDiscountPct}% off site-wide`
+            : "no markdown";
+        const active = discountRules?.filter((r) => r.on !== false).length || 0;
+        return active > 0 ? `${flat} · ${active} rule${active === 1 ? "" : "s"}` : flat;
+      })(),
     },
     {
       key: "pdp",

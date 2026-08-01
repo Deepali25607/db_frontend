@@ -500,7 +500,11 @@ export default function Product() {
                 )}
                 {price.discountPct > 0 && (
                   <tr>
-                    <td>Discount — {price.discountPct}% off</td>
+                    <td>
+                      {price.discountLabel
+                        ? `${price.discountLabel}${price.discountBase === "making" ? " — on making charges" : ` — ${price.discountPct}% off`}`
+                        : `Discount — ${price.discountPct}% off`}
+                    </td>
                     <td>−{formatINR(price.discountValue)}</td>
                   </tr>
                 )}

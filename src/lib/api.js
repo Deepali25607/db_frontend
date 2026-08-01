@@ -301,6 +301,9 @@ export const adminApi = {
   config: () => request("/api/admin/config", { headers: adminHeaders() }),
   patchContent: (body) =>
     request("/api/admin/content", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify(body) }),
+  discountRules: () => request("/api/admin/discount-rules", { headers: adminHeaders() }),
+  patchDiscountRules: (rules) =>
+    request("/api/admin/discount-rules", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ rules }) }),
   patchSchemeVariants: (variants) =>
     request("/api/admin/scheme-variants", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ variants }) }),
   patchEmiPlans: (plans) =>
