@@ -649,6 +649,12 @@ const PDP_TOGGLES = [
       ["pdpShowVisit", "Book a showroom visit for this piece"],
     ],
   },
+  {
+    group: "Financing",
+    items: [
+      ["pdpShowEmi", "EMI line — bank plans from the EMI & bank partners setting, or the simple tenure line"],
+    ],
+  },
 ];
 
 function PdpDetailsPanel({ config, onSaved }) {
@@ -1376,6 +1382,135 @@ function DeliveryAreaPanel({ config, onSaved }) {
   );
 }
 
+/* EMI & bank partners — financing schemes shown on every product page.
+   The PDP headlines the cheapest eligible plan; with no plans it shows the
+   simple interest-free line using the Checkout & payments tenure. */
+function EmiPlansPanel({ onSaved }) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.config()
+      .then((c) => setRows((c.emiPlans || []).map((p) => ({ ...p }))))
+      .catch((e) => setError(e.message));
+  }, []);
+
+  const set = (i, field) => (e) => {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [field]: e.target.value } : r)));
+  };
+
+  const save = async (clear = false) => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const { plans } = await adminApi.patchEmiPlans(
+        clear
+          ? []
+          : rows.map((r) => ({
+              bank: r.bank,
+              months: Number(r.months),
+              ratePct: Number(r.ratePct || 0),
+              minAmount: Number(r.minAmount || 0),
+            }))
+      );
+      setRows(plans.map((p) => ({ ...p })));
+      setNote(
+        clear
+          ? "Plans cleared — product pages show the simple EMI line again."
+          : "Plans saved — every product page now quotes the cheapest eligible scheme."
+      );
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && rows === null) return <p className="form-error">{error}</p>;
+  if (rows === null) return <div className="skeleton" style={{ height: 220 }} />;
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        Financing schemes agreed with your bank partners. Product pages headline
+        the cheapest plan the piece qualifies for and list the rest under
+        “View bank plans”. Interest is a flat rate per year (0 = no-cost EMI);
+        minimum amount hides a plan on cheaper pieces. With no plans here, the
+        page falls back to the simple line using the tenure from
+        Checkout &amp; payments. The line can be hidden entirely under
+        Product details.
+      </p>
+      {note && <p className="admin-note">{note}</p>}
+      {error && <p className="form-error">{error}</p>}
+
+      <div style={{ display: "grid", gap: "0.9rem" }}>
+        {rows.map((r, i) => (
+          <div
+            key={i}
+            className="emi-row"
+            style={{ display: "grid", gap: "0.55rem", padding: "0.9rem 1rem", background: "var(--paper)", border: "1px solid var(--line-soft)", borderRadius: 12 }}
+          >
+            <input value={r.bank} onChange={set(i, "bank")} placeholder="Bank / partner — e.g. HDFC Bank" maxLength={40} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "0.55rem", alignItems: "center" }}>
+              <label style={{ display: "grid", gap: "0.2rem", fontSize: "0.72rem", color: "var(--ink-faint)" }}>
+                Tenure (months)
+                <input type="number" min={3} max={36} value={r.months} onChange={set(i, "months")} placeholder="12" />
+              </label>
+              <label style={{ display: "grid", gap: "0.2rem", fontSize: "0.72rem", color: "var(--ink-faint)" }}>
+                Interest % / year
+                <input type="number" min={0} max={30} step={0.1} value={r.ratePct} onChange={set(i, "ratePct")} placeholder="0 = no-cost" />
+              </label>
+              <label style={{ display: "grid", gap: "0.2rem", fontSize: "0.72rem", color: "var(--ink-faint)" }}>
+                Minimum amount ₹
+                <input type="number" min={0} step={1000} value={r.minAmount} onChange={set(i, "minAmount")} placeholder="0" />
+              </label>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: "0.45rem 0.9rem", alignSelf: "end" }}
+                disabled={busy}
+                onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <p className="muted" style={{ fontSize: "0.84rem" }}>
+            No bank plans yet — product pages are showing the simple
+            interest-free line.
+          </p>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginTop: "1.1rem" }}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          style={{ padding: "0.5rem 1.1rem" }}
+          disabled={busy || rows.length >= 10}
+          onClick={() => setRows((prev) => [...prev, { bank: "", months: 12, ratePct: 0, minAmount: 0 }])}
+        >
+          + Add a plan
+        </button>
+        <button type="button" className="btn btn-maroon" style={{ padding: "0.5rem 1.4rem" }} disabled={busy || rows.length === 0} onClick={() => save(false)}>
+          {busy ? "Saving…" : "Save plans"}
+        </button>
+        {rows.length > 0 && (
+          <button type="button" className="btn btn-outline" style={{ padding: "0.5rem 1.1rem" }} disabled={busy} onClick={() => save(true)}>
+            Clear all plans
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* Showrooms — the branch list behind /stores, the appointment booking form,
    store pickup at checkout and the footfall report. Wholesale save, same as
    the header/footer links; an empty list restores the standard branches. */
@@ -1478,6 +1613,7 @@ function Settings() {
   const [content, setContent] = useState(null);
   const [auditRows, setAuditRows] = useState(null);
   const [storeRows, setStoreRows] = useState(null);
+  const [emiPlans, setEmiPlans] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState(null); // null = hub
 
@@ -1486,6 +1622,7 @@ function Settings() {
     api.content().then(setContent).catch(() => {});
     adminApi.auditLog().then(setAuditRows).catch(() => {});
     api.stores().then((d) => setStoreRows(d.stores)).catch(() => {});
+    api.config().then((c) => setEmiPlans(c.emiPlans || [])).catch(() => {});
   }, []);
 
   useEffect(refresh, [refresh]);
@@ -1537,6 +1674,15 @@ function Settings() {
         : "hidden from customers",
     },
     {
+      key: "emi",
+      glyph: "◷",
+      title: "EMI & bank partners",
+      desc: "Financing schemes quoted on every product page, by bank partner.",
+      chip: emiPlans?.length
+        ? `${emiPlans.length} bank plan${emiPlans.length === 1 ? "" : "s"}`
+        : `simple line · ${data.config.emiMonths} months`,
+    },
+    {
       key: "showrooms",
       glyph: "⌂",
       title: "Showrooms",
@@ -1561,7 +1707,7 @@ function Settings() {
       title: "Product details",
       desc: "The price note and enquiry links shown on every product page.",
       chip: (() => {
-        const keys = ["pdpShowGstNote", "pdpShowRateNote", "pdpShowLockNote", "pdpShowWhatsapp", "pdpShowCallback", "pdpShowVisit"];
+        const keys = ["pdpShowGstNote", "pdpShowRateNote", "pdpShowLockNote", "pdpShowWhatsapp", "pdpShowCallback", "pdpShowVisit", "pdpShowEmi"];
         const on = keys.filter((k) => data.config[k] !== 0).length;
         return `${on} of ${keys.length} elements shown`;
       })(),
@@ -1625,6 +1771,7 @@ function Settings() {
         {view === "support" && <SupportPanel onSaved={refresh} />}
         {view === "policy" && <OrderPolicyPanel config={data.config} onSaved={refresh} />}
         {view === "showrooms" && <ShowroomsPanel onSaved={refresh} />}
+        {view === "emi" && <EmiPlansPanel onSaved={refresh} />}
         {view === "appearance" && <AppearancePanel onSaved={refresh} />}
         {view === "headerfooter" && <HeaderFooterPanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}

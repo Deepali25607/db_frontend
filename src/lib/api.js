@@ -301,6 +301,8 @@ export const adminApi = {
   config: () => request("/api/admin/config", { headers: adminHeaders() }),
   patchContent: (body) =>
     request("/api/admin/content", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify(body) }),
+  patchEmiPlans: (plans) =>
+    request("/api/admin/emi-plans", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ plans }) }),
   patchStores: (stores) =>
     request("/api/admin/stores", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ stores }) }),
   uploadFile: async (file) => {

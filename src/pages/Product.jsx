@@ -198,6 +198,7 @@ export default function Product() {
   const [pin, setPin] = useState("");
   const [pinResult, setPinResult] = useState(null);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
+  const [emiOpen, setEmiOpen] = useState(false);
 
   const [reviews, setReviews] = useState(null);
   const [engraving, setEngraving] = useState("");
@@ -314,6 +315,16 @@ export default function Product() {
   const wished = wishlist.includes(product.slug);
   const needsSize = product.sizes && product.sizes.length > 0;
   const emiMonths = config?.emiMonths || 12;
+  // Bank-partner EMI schemes (Admin → Settings → EMI & bank partners):
+  // flat annual interest, cheapest eligible plan headlines the line. With no
+  // plans configured the simple interest-free tenure line shows instead.
+  const emiOptions = (Array.isArray(config?.emiPlans) ? config.emiPlans : [])
+    .filter((p) => price.total >= (p.minAmount || 0))
+    .map((p) => ({
+      ...p,
+      monthly: Math.ceil((price.total * (1 + ((p.ratePct || 0) / 100) * (p.months / 12))) / p.months),
+    }))
+    .sort((a, b) => a.monthly - b.monthly);
   const stone = product.stones[0];
 
   const checkPin = async (e) => {
@@ -586,10 +597,41 @@ export default function Product() {
 
           <EnquiryRow product={product} config={config} content={content} />
 
-          <p className="emi-line">
-            EMI from <strong>{formatINR(Math.ceil(price.total / emiMonths))}/month</strong>{" "}
-            for {emiMonths} months · UPI, cards, net-banking accepted
-          </p>
+          {config?.pdpShowEmi !== 0 && (
+            emiOptions.length > 0 ? (
+              <div className="emi-line">
+                <p>
+                  EMI from <strong>{formatINR(emiOptions[0].monthly)}/month</strong> with{" "}
+                  {emiOptions[0].bank} ({emiOptions[0].months} months) ·{" "}
+                  <button type="button" className="emi-toggle" onClick={() => setEmiOpen((v) => !v)}>
+                    {emiOpen ? "Hide bank plans" : `View ${emiOptions.length} bank plan${emiOptions.length > 1 ? "s" : ""}`}
+                  </button>
+                </p>
+                {emiOpen && (
+                  <table className="emi-table">
+                    <thead>
+                      <tr><th>Bank / partner</th><th>Tenure</th><th>Interest</th><th>Monthly</th></tr>
+                    </thead>
+                    <tbody>
+                      {emiOptions.map((p, i) => (
+                        <tr key={i}>
+                          <td>{p.bank}</td>
+                          <td>{p.months} months</td>
+                          <td>{p.ratePct > 0 ? `${p.ratePct}% p.a.` : "No-cost"}</td>
+                          <td>{formatINR(p.monthly)}/mo</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ) : (
+              <p className="emi-line">
+                EMI from <strong>{formatINR(Math.ceil(price.total / emiMonths))}/month</strong>{" "}
+                for {emiMonths} months · UPI, cards, net-banking accepted
+              </p>
+            )
+          )}
 
           {/* PIN check (BRD FR-PDP-04) */}
           <div className="pin-check">

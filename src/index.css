@@ -1759,6 +1759,49 @@ h1, h2, h3, h4 {
   color: var(--ink);
 }
 
+.emi-toggle {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--maroon);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.emi-table {
+  width: 100%;
+  max-width: 480px;
+  margin-top: 0.7rem;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  background: var(--paper);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.emi-table th {
+  text-align: left;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.emi-table td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--line-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.emi-table tr:last-child td {
+  border-bottom: none;
+}
+
 .pdp-tabs {
   margin-top: 0.6rem;
 }
