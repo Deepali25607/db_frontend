@@ -723,51 +723,186 @@ export default function Cart() {
 
       {/* simulated payment gateway */}
       {intent && (
-        <div className="modal-backdrop">
-          <div className="modal gateway" role="dialog" aria-label="Payment">
-            <p className="gateway-brand">{intent.gateway}</p>
-            <h3 style={{ fontSize: "2rem" }}>{formatINR(intent.amount)}</h3>
-            <p className="muted" style={{ fontSize: "0.9rem" }}>
-              Paying DP Jewellers via{" "}
-              {intent.mode === "upi" ? "UPI" : intent.mode === "card" ? "card" : "net banking"} ·
-              ref {intent.intentId}
-            </p>
-            {intent.lockedUntil && (
-              <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.4rem" }}>
-                Price locked at today's rate until{" "}
-                {new Date(intent.lockedUntil).toLocaleTimeString("en-IN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}{" "}
-                ({intent.priceLockMinutes} min)
-              </p>
-            )}
-            <div style={{ display: "grid", gap: "0.7rem", marginTop: "1.6rem" }}>
-              <button
-                className="btn btn-green"
-                disabled={placing}
-                onClick={() => resolvePayment("success")}
-              >
-                {placing ? "Processing…" : "Pay now (simulate success)"}
-              </button>
-              <button
-                className="btn btn-outline"
-                disabled={placing}
-                onClick={() => resolvePayment("failure")}
-              >
-                Simulate a failed payment
-              </button>
-              <button
-                className="remove-btn"
-                style={{ margin: "0.4rem auto 0" }}
-                onClick={() => setIntent(null)}
-              >
-                Cancel and return to bag
-              </button>
-            </div>
-          </div>
-        </div>
+        <GatewaySheet
+          intent={intent}
+          placing={placing}
+          onPay={() => resolvePayment("success")}
+          onFail={() => resolvePayment("failure")}
+          onCancel={() => setIntent(null)}
+        />
       )}
     </>
+  );
+}
+
+/* ------------------------------------------------- simulated gateway sheet
+   Stands in while no Razorpay keys are configured. It behaves like a real
+   payment sheet — card/UPI/bank details are required and validated — but
+   nothing entered here ever leaves the browser or is stored anywhere. */
+const luhnOk = (num) => {
+  const d = num.replace(/\D/g, "");
+  if (d.length < 13 || d.length > 19) return false;
+  let sum = 0;
+  let dbl = false;
+  for (let i = d.length - 1; i >= 0; i--) {
+    let n = +d[i];
+    if (dbl) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    dbl = !dbl;
+  }
+  return sum % 10 === 0;
+};
+
+const cardBrand = (num) => {
+  const d = num.replace(/\D/g, "");
+  if (/^4/.test(d)) return "Visa";
+  if (/^(5[1-5]|2[2-7])/.test(d)) return "Mastercard";
+  if (/^(60|65|81|82)/.test(d)) return "RuPay";
+  if (/^3[47]/.test(d)) return "American Express";
+  return null;
+};
+
+const NETBANKS = [
+  "State Bank of India", "HDFC Bank", "ICICI Bank", "Axis Bank",
+  "Kotak Mahindra Bank", "Punjab National Bank", "Bank of Baroda", "Other bank",
+];
+
+function GatewaySheet({ intent, placing, onPay, onFail, onCancel }) {
+  const [card, setCard] = useState({ number: "", name: "", expiry: "", cvv: "" });
+  const [upiId, setUpiId] = useState("");
+  const [bank, setBank] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const setCardField = (field) => (e) => {
+    let v = e.target.value;
+    if (field === "number") v = v.replace(/\D/g, "").slice(0, 19).replace(/(.{4})/g, "$1 ").trim();
+    if (field === "expiry") {
+      v = v.replace(/\D/g, "").slice(0, 4);
+      if (v.length > 2) v = `${v.slice(0, 2)}/${v.slice(2)}`;
+    }
+    if (field === "cvv") v = v.replace(/\D/g, "").slice(0, 4);
+    setCard((c) => ({ ...c, [field]: v }));
+  };
+
+  const expiryOk = (() => {
+    const m = card.expiry.match(/^(\d{2})\/(\d{2})$/);
+    if (!m) return false;
+    const mm = +m[1];
+    if (mm < 1 || mm > 12) return false;
+    const now = new Date();
+    const yy = 2000 + +m[2];
+    return yy > now.getFullYear() || (yy === now.getFullYear() && mm >= now.getMonth() + 1);
+  })();
+
+  const brand = cardBrand(card.number);
+  const problems =
+    intent.mode === "card"
+      ? [
+          !luhnOk(card.number) && "Enter a valid card number.",
+          !card.name.trim() && "Enter the name on the card.",
+          !expiryOk && "Expiry must be a future MM/YY.",
+          !/^\d{3,4}$/.test(card.cvv) && "Enter the 3–4 digit CVV.",
+        ].filter(Boolean)
+      : intent.mode === "upi"
+        ? [!/^[a-z0-9][a-z0-9._-]+@[a-z]{2,}$/i.test(upiId.trim()) && "Enter a valid UPI ID — e.g. name@okbank."].filter(Boolean)
+        : [!bank && "Choose your bank."].filter(Boolean);
+  const valid = problems.length === 0;
+
+  const pay = (e) => {
+    e.preventDefault();
+    setTouched(true);
+    if (valid && !placing) onPay();
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal gateway" role="dialog" aria-label="Payment">
+        <p className="gateway-brand">{intent.gateway}</p>
+        <h3 style={{ fontSize: "2rem" }}>{formatINR(intent.amount)}</h3>
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Paying DP Jewellers via{" "}
+          {intent.mode === "upi" ? "UPI" : intent.mode === "card" ? "card" : "net banking"} ·
+          ref {intent.intentId}
+        </p>
+        {intent.lockedUntil && (
+          <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.4rem" }}>
+            Price locked at today's rate until{" "}
+            {new Date(intent.lockedUntil).toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}{" "}
+            ({intent.priceLockMinutes} min)
+          </p>
+        )}
+
+        <form className="gw-form" onSubmit={pay}>
+          {intent.mode === "card" && (
+            <>
+              <label>
+                Card number{brand ? ` · ${brand}` : ""}
+                <input
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="0000 0000 0000 0000"
+                  value={card.number}
+                  onChange={setCardField("number")}
+                />
+              </label>
+              <label>
+                Name on card
+                <input autoComplete="off" placeholder="As printed on the card" value={card.name} onChange={setCardField("name")} />
+              </label>
+              <div className="gw-two">
+                <label>
+                  Expiry (MM/YY)
+                  <input inputMode="numeric" autoComplete="off" placeholder="MM/YY" value={card.expiry} onChange={setCardField("expiry")} />
+                </label>
+                <label>
+                  CVV
+                  <input type="password" inputMode="numeric" autoComplete="off" placeholder="•••" value={card.cvv} onChange={setCardField("cvv")} />
+                </label>
+              </div>
+            </>
+          )}
+          {intent.mode === "upi" && (
+            <label>
+              UPI ID
+              <input autoComplete="off" placeholder="name@okbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
+            </label>
+          )}
+          {intent.mode !== "card" && intent.mode !== "upi" && (
+            <label>
+              Bank
+              <select value={bank} onChange={(e) => setBank(e.target.value)}>
+                <option value="">Choose your bank…</option>
+                {NETBANKS.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {touched && !valid && <p className="form-error" style={{ margin: 0 }}>{problems[0]}</p>}
+
+          <div style={{ display: "grid", gap: "0.7rem", marginTop: "0.5rem" }}>
+            <button className="btn btn-green" type="submit" disabled={placing}>
+              {placing ? "Processing…" : `Pay ${formatINR(intent.amount)}`}
+            </button>
+            <button className="btn btn-outline" type="button" disabled={placing} onClick={onFail}>
+              Simulate a failed payment
+            </button>
+            <button className="remove-btn" type="button" style={{ margin: "0.4rem auto 0" }} onClick={onCancel}>
+              Cancel and return to bag
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: "0.72rem", marginTop: "0.6rem" }}>
+            Test mode — details are checked in this window only; nothing is
+            stored or charged.
+          </p>
+        </form>
+      </div>
+    </div>
   );
 }
