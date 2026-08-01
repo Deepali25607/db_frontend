@@ -88,11 +88,32 @@ export default function Track() {
               <h3>
                 {result.orderId} · {formatINR(result.total)}
               </h3>
-              <p className="muted" style={{ fontSize: "0.86rem", marginBottom: "1.2rem" }}>
-                {result.lines.map((l) => `${l.name}${l.size ? ` (${l.size})` : ""} × ${l.qty}`).join(" · ")}
-                {" · "}
+              <p className="muted" style={{ fontSize: "0.86rem", marginBottom: "1rem" }}>
                 {result.payment.mode.toUpperCase()} ({result.payment.status})
               </p>
+              {/* the order, piece by piece — each line with its own state */}
+              <ul className="track-lines">
+                {result.lines.map((l, i) => {
+                  const ret = result.returns.find((r) => r.slug === l.slug && (r.size || null) === (l.size || null));
+                  return (
+                    <li key={i}>
+                      <img src={l.image} alt="" loading="lazy" />
+                      <span className="tl-info">
+                        <Link to={`/product/${l.slug}`} className="tl-name">{l.name}</Link>
+                        <span className="muted">
+                          {l.size ? `Size ${l.size} · ` : ""}Qty {l.qty}
+                        </span>
+                      </span>
+                      <span className="tl-right">
+                        {typeof l.lineTotal === "number" && <strong>{formatINR(l.lineTotal)}</strong>}
+                        <span className={`status-pill ${ret ? "alt" : ""}`}>
+                          {ret ? `${ret.type} — ${ret.status}` : result.status}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
               {result.invoiceAvailable && (
                 <p style={{ marginBottom: "1.2rem" }}>
                   <Link

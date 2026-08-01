@@ -1759,6 +1759,66 @@ h1, h2, h3, h4 {
   color: var(--ink);
 }
 
+/* track page — the order piece by piece */
+.track-lines {
+  list-style: none;
+  display: grid;
+  gap: 0.7rem;
+  margin: 0 0 1.4rem;
+  padding: 0;
+}
+
+.track-lines li {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--cream-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.track-lines img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 9px;
+  flex: none;
+}
+
+.tl-info {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.tl-name {
+  font-family: var(--serif);
+  font-size: 1.02rem;
+}
+
+.tl-name:hover {
+  color: var(--maroon);
+}
+
+.tl-info .muted {
+  font-size: 0.8rem;
+}
+
+.tl-right {
+  margin-left: auto;
+  display: grid;
+  gap: 0.3rem;
+  justify-items: end;
+  text-align: right;
+  flex: none;
+}
+
+.status-pill.alt {
+  background: rgba(185, 138, 47, 0.16);
+  color: var(--gold);
+}
+
 /* simulated gateway sheet — card/UPI/bank fields */
 .gw-form {
   display: grid;

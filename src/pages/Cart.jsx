@@ -288,6 +288,10 @@ export default function Cart() {
           Amount payable: {formatINR(success.total)} · GST invoice with HUID
           details will accompany the shipment.
         </p>
+        <p className="muted" style={{ fontSize: "0.86rem" }}>
+          Your details are saved to your DP Jewellers account — sign in anytime
+          with just your mobile number to see orders, returns and rewards.
+        </p>
         <div style={{ display: "flex", gap: "0.8rem", justifyContent: "center", marginTop: "1.6rem", flexWrap: "wrap" }}>
           <Link to="/track" className="btn btn-outline">
             Track this order
