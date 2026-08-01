@@ -15,15 +15,49 @@ const RETURN_REASONS = [
 export default function Track() {
   const [orderId, setOrderId] = useState("");
   const [phone, setPhone] = useState("");
-  const [result, setResult] = useState(null);
+  const [orders, setOrders] = useState(null); // phone-first: all orders
+  const [result, setResult] = useState(null); // one order, full detail
+  const [byId, setById] = useState(false); // optional order-ID mode
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // phone is all it takes — list every order, piece by piece
+  const lookupMine = async (e) => {
+    e?.preventDefault();
+    setError(null);
+    setResult(null);
+    setOrders(null);
+    setLoading(true);
+    try {
+      const { orders: mine } = await api.trackMy(phone);
+      setOrders(mine);
+      if (mine.length === 0) setError("No orders yet under this mobile number.");
+      else if (mine.length === 1) openDetail(mine[0].orderId);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openDetail = async (id) => {
+    setError(null);
+    setLoading(true);
+    try {
+      setOrderId(id);
+      setResult(await api.track(id, phone));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const lookup = async (e) => {
     e?.preventDefault();
     setError(null);
     if (!e) {
-      // silent refresh after a return request
+      // silent refresh after a cancel/return request
       try {
         setResult(await api.track(orderId, phone));
       } catch { /* keep old view */ }
@@ -48,39 +82,114 @@ export default function Track() {
           <h1>
             Track your <em>order.</em>
           </h1>
-          <p>Enter the order ID from your confirmation and the mobile number used at checkout.</p>
+          <p>Just the mobile number used at checkout — every order appears, piece by piece.</p>
         </div>
       </div>
 
       <div className="container" style={{ maxWidth: 680, padding: "3rem 0 6rem" }}>
-        <form className="checkout-form" onSubmit={lookup}>
-          <div className="form-row">
+        {!byId ? (
+          <form className="checkout-form" onSubmit={lookupMine}>
             <div className="field">
-              <label htmlFor="t-order">Order ID</label>
-              <input
-                id="t-order"
-                required
-                placeholder="DPJ260726-XXXXXX"
-                value={orderId}
-                onChange={(e) => setOrderId(e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="t-phone">Mobile</label>
+              <label htmlFor="t-phone">Mobile number</label>
               <input
                 id="t-phone"
                 required
                 inputMode="numeric"
+                placeholder="10-digit mobile"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
               />
             </div>
+            {error && <p className="form-error">{error}</p>}
+            <button className="btn btn-maroon" disabled={loading}>
+              {loading ? "Searching…" : "Show my orders"}
+            </button>
+            <button type="button" className="remove-btn" style={{ justifySelf: "start" }} onClick={() => { setById(true); setError(null); }}>
+              Have an order ID? Track a single order
+            </button>
+          </form>
+        ) : (
+          <form className="checkout-form" onSubmit={lookup}>
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor="t-order">Order ID</label>
+                <input
+                  id="t-order"
+                  required
+                  placeholder="DPJ260726-XXXXXX"
+                  value={orderId}
+                  onChange={(e) => setOrderId(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="t-phone2">Mobile</label>
+                <input
+                  id="t-phone2"
+                  required
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                />
+              </div>
+            </div>
+            {error && <p className="form-error">{error}</p>}
+            <button className="btn btn-maroon" disabled={loading}>
+              {loading ? "Searching…" : "Track order"}
+            </button>
+            <button type="button" className="remove-btn" style={{ justifySelf: "start" }} onClick={() => { setById(false); setError(null); }}>
+              ← Track everything with just my mobile number
+            </button>
+          </form>
+        )}
+
+        {orders && orders.length > 0 && !result && (
+          <div style={{ marginTop: "2.4rem", display: "grid", gap: "1.2rem" }}>
+            {orders.map((o) => (
+              <div key={o.orderId} className="summary-card" style={{ position: "static" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem", flexWrap: "wrap" }}>
+                  <h3 style={{ margin: 0 }}>{o.orderId} · {formatINR(o.total)}</h3>
+                  <span className="status-pill">{o.status}</span>
+                </div>
+                <p className="muted" style={{ fontSize: "0.82rem", margin: "0.3rem 0 1rem" }}>
+                  Placed {new Date(o.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+                <ul className="track-lines">
+                  {o.lines.map((l, i) => (
+                    <li key={i}>
+                      <img src={l.image} alt="" loading="lazy" />
+                      <span className="tl-info">
+                        <Link to={`/product/${l.slug}`} className="tl-name">{l.name}</Link>
+                        <span className="muted">{l.size ? `Size ${l.size} · ` : ""}Qty {l.qty}</span>
+                      </span>
+                      <span className="tl-right">
+                        {typeof l.lineTotal === "number" && <strong>{formatINR(l.lineTotal)}</strong>}
+                        <span className="status-pill">{o.status}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                  <button className="link-underline" style={{ font: "inherit", fontSize: "0.86rem", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--maroon)" }} onClick={() => openDetail(o.orderId)}>
+                    Full timeline{o.cancellable ? ", cancellation" : ""} & returns →
+                  </button>
+                  {o.invoiceAvailable && (
+                    <Link to={`/invoice/${o.orderId}?phone=${encodeURIComponent(phone)}`} className="link-underline" style={{ fontSize: "0.86rem" }}>
+                      Tax invoice
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-          {error && <p className="form-error">{error}</p>}
-          <button className="btn btn-maroon" disabled={loading}>
-            {loading ? "Searching…" : "Track order"}
-          </button>
-        </form>
+        )}
+
+        {result && orders && orders.length > 1 && (
+          <p style={{ marginTop: "2rem" }}>
+            <button className="link-underline" style={{ font: "inherit", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--maroon)" }} onClick={() => setResult(null)}>
+              ← All my orders
+            </button>
+          </p>
+        )}
 
         {result && (
           <>

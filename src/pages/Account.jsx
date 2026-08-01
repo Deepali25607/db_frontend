@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { BagIcon, CardIcon, HeartIcon, PinIcon, UserIcon } from "../components/Icons";
 import { accountApi } from "../lib/api";
 import { useSeo } from "../lib/seo";
 import { formatINR } from "../lib/format";
@@ -7,10 +8,18 @@ import { formatINR } from "../lib/format";
 const fmtDate = (iso) =>
   new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
+const PROFILE_TABS = [
+  { key: "profile", label: "Profile", icon: <UserIcon /> },
+  { key: "addresses", label: "Addresses", icon: <PinIcon /> },
+  { key: "orders", label: "Orders", icon: <BagIcon /> },
+  { key: "credit", label: "Credit", icon: <CardIcon /> },
+];
+
 export default function Account() {
-  useSeo({ title: "My Account" });
+  useSeo({ title: "My Profile" });
   const [me, setMe] = useState(null);
   const [authed, setAuthed] = useState(accountApi.hasToken());
+  const [tab, setTab] = useState("profile");
 
   const load = () =>
     accountApi
@@ -34,29 +43,162 @@ export default function Account() {
     );
 
   return (
-    <>
-      <div className="page-band">
-        <div className="container">
-          <span className="eyebrow">My Account</span>
-          <h1>
-            Welcome{me.customer.name ? "," : ""} <em>{me.customer.name || "back"}.</em>
-          </h1>
-          <p>{me.customer.phone} · member since {fmtDate(me.customer.createdAt)}</p>
+    <div className="container section" style={{ paddingTop: "3rem" }}>
+      <h1 className="profile-title">My Profile</h1>
+      <div className="profile-layout">
+        <nav className="profile-nav" aria-label="Account sections">
+          {PROFILE_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`pn-item ${tab === t.key ? "active" : ""}`}
+              onClick={() => setTab(t.key)}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+          <Link to="/wishlist" className="pn-item">
+            <HeartIcon />
+            Wishlist
+          </Link>
+        </nav>
+
+        <div className="profile-pane">
+          {tab === "profile" && (
+            <ProfileCard me={me} onSaved={load} onDeleted={() => setAuthed(false)} />
+          )}
+          {tab === "addresses" && (
+            <div className="profile-card"><AddressBook me={me} onChanged={load} /></div>
+          )}
+          {tab === "orders" && <div className="profile-card"><History me={me} /></div>}
+          {tab === "credit" && <div className="profile-card"><Rewards /></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------- profile card */
+function ProfileCard({ me, onSaved, onDeleted }) {
+  const c = me.customer;
+  const [editing, setEditing] = useState(false);
+  const initial = (c.name || "D").trim().charAt(0).toUpperCase();
+  const since = new Date(c.createdAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const dash = (v) => v || "—";
+
+  return (
+    <div className="profile-card">
+      <div className="profile-head">
+        <span className="profile-avatar" aria-hidden>{initial}</span>
+        <div>
+          <h2>{c.name || "Welcome"}</h2>
+          <p className="muted" style={{ margin: "0.1rem 0 0.4rem" }}>Member since {since}</p>
+          <span className="verified-chip">Phone ✓</span>
         </div>
       </div>
 
-      <div className="container section" style={{ paddingTop: "3rem" }}>
-        <div className="scheme-columns">
-          <div>
-            <Rewards />
-            <Profile me={me} onSaved={load} />
-            <AddressBook me={me} onChanged={load} />
-            <Privacy onDeleted={() => setAuthed(false)} />
-          </div>
-          <History me={me} />
+      {!editing ? (
+        <>
+          <dl className="profile-grid">
+            <div><dt>Full name</dt><dd>{dash(c.name)}</dd></div>
+            <div><dt>Email</dt><dd>{dash(c.email)}</dd></div>
+            <div><dt>Phone</dt><dd>{c.phone}</dd></div>
+            <div><dt>Date of birth</dt><dd>{c.dob ? fmtDate(c.dob) : "—"}</dd></div>
+            <div><dt>Gender</dt><dd>{dash(c.gender)}</dd></div>
+            {c.anniversary && <div><dt>Anniversary</dt><dd>{fmtDate(c.anniversary)}</dd></div>}
+            {c.ringSize && <div><dt>Ring size</dt><dd>{c.ringSize}</dd></div>}
+          </dl>
+          <button className="btn btn-maroon" onClick={() => setEditing(true)}>
+            ✎ Edit profile
+          </button>
+        </>
+      ) : (
+        <EditProfile
+          me={me}
+          onDone={() => {
+            setEditing(false);
+            onSaved();
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+
+      <div style={{ marginTop: "2.2rem", borderTop: "1px solid var(--line-soft)", paddingTop: "1.4rem" }}>
+        <Privacy onDeleted={onDeleted} />
+      </div>
+    </div>
+  );
+}
+
+function EditProfile({ me, onDone, onCancel }) {
+  const [form, setForm] = useState({
+    name: me.customer.name || "",
+    email: me.customer.email || "",
+    dob: me.customer.dob || "",
+    gender: me.customer.gender || "",
+    anniversary: me.customer.anniversary || "",
+    ringSize: me.customer.ringSize || "",
+  });
+  const [error, setError] = useState(null);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      await accountApi.updateProfile(form);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <form className="checkout-form" onSubmit={saveProfile} style={{ marginTop: "0.6rem" }}>
+      <div className="form-row">
+        <div className="field">
+          <label>Full name</label>
+          <input value={form.name} onChange={set("name")} />
+        </div>
+        <div className="field">
+          <label>Email</label>
+          <input type="email" value={form.email} onChange={set("email")} />
         </div>
       </div>
-    </>
+      <div className="form-row">
+        <div className="field">
+          <label>Date of birth</label>
+          <input type="date" value={form.dob} onChange={set("dob")} />
+        </div>
+        <div className="field">
+          <label>Gender</label>
+          <select value={form.gender} onChange={set("gender")}>
+            <option value="">Prefer not to say</option>
+            <option>Female</option>
+            <option>Male</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="field">
+          <label>Anniversary</label>
+          <input type="date" value={form.anniversary} onChange={set("anniversary")} />
+        </div>
+        <div className="field">
+          <label>Ring size</label>
+          <input placeholder="e.g. 12" value={form.ringSize} onChange={set("ringSize")} />
+        </div>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      <div style={{ display: "flex", gap: "0.7rem" }}>
+        <button className="btn btn-maroon">Save profile</button>
+        <button type="button" className="btn btn-outline" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -208,61 +350,6 @@ function Rewards() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------ profile */
-function Profile({ me, onSaved }) {
-  const [form, setForm] = useState({
-    name: me.customer.name || "",
-    email: me.customer.email || "",
-    dob: me.customer.dob || "",
-    anniversary: me.customer.anniversary || "",
-    ringSize: me.customer.ringSize || "",
-  });
-  const [note, setNote] = useState(null);
-
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  const saveProfile = async (e) => {
-    e.preventDefault();
-    await accountApi.updateProfile(form);
-    setNote("Saved.");
-    onSaved();
-  };
-
-  return (
-    <div style={{ marginBottom: "2.4rem" }}>
-      <h3 className="admin-subhead" style={{ marginTop: 0 }}>Profile</h3>
-      <form className="checkout-form" onSubmit={saveProfile}>
-        <div className="form-row">
-          <div className="field">
-            <label>Name</label>
-            <input value={form.name} onChange={set("name")} />
-          </div>
-          <div className="field">
-            <label>Email</label>
-            <input type="email" value={form.email} onChange={set("email")} />
-          </div>
-        </div>
-        <div className="form-row">
-          <div className="field">
-            <label>Birthday</label>
-            <input type="date" value={form.dob} onChange={set("dob")} />
-          </div>
-          <div className="field">
-            <label>Anniversary</label>
-            <input type="date" value={form.anniversary} onChange={set("anniversary")} />
-          </div>
-        </div>
-        <div className="field">
-          <label>Ring size</label>
-          <input placeholder="e.g. 12" value={form.ringSize} onChange={set("ringSize")} />
-        </div>
-        {note && <p className="admin-note">{note}</p>}
-        <button className="btn btn-maroon">Save profile</button>
-      </form>
     </div>
   );
 }

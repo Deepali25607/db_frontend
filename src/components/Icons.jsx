@@ -30,6 +30,20 @@ export const BagIcon = () => (
   </svg>
 );
 
+export const PinIcon = () => (
+  <svg {...base}>
+    <path d="M12 21s-6.5-5.5-6.5-10.4A6.5 6.5 0 0 1 12 4a6.5 6.5 0 0 1 6.5 6.6C18.5 15.5 12 21 12 21Z" />
+    <circle cx="12" cy="10.4" r="2.3" />
+  </svg>
+);
+
+export const CardIcon = () => (
+  <svg {...base}>
+    <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+    <path d="M3 10h18M6.5 14.5h4" />
+  </svg>
+);
+
 export const HomeIcon = () => (
   <svg {...base}>
     <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1v-9.5Z" />
