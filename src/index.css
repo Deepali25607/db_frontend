@@ -1243,6 +1243,26 @@ h1, h2, h3, h4 {
   top: 106px;
   display: grid;
   gap: 1.8rem;
+  /* the sidebar scrolls by itself under the cursor — never the page with it */
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.6rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cream-3) transparent;
+}
+
+.filters::-webkit-scrollbar {
+  width: 6px;
+}
+
+.filters::-webkit-scrollbar-thumb {
+  background: var(--cream-3);
+  border-radius: 999px;
+}
+
+.filters::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-light);
 }
 
 .filter-group h4 {
@@ -3076,6 +3096,9 @@ h1, h2, h3, h4 {
   .filters {
     display: none;
     position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
   .filters.open {
     display: grid;
