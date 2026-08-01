@@ -39,8 +39,8 @@ export default function Appointments() {
                 <h3>{s.name}</h3>
                 <p className="muted" style={{ fontSize: "0.92rem" }}>{s.address}</p>
                 <ul>
-                  <li>{s.hours}</li>
-                  <li>{s.phone}</li>
+                  {s.hours && <li>{s.hours}</li>}
+                  {s.phone && <li>{s.phone}</li>}
                 </ul>
               </div>
             </Reveal>

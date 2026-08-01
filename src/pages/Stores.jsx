@@ -44,10 +44,12 @@ export default function Stores() {
                     {s.name}
                   </h3>
                   <p className="muted" style={{ marginBottom: "0.6rem" }}>{s.address}</p>
-                  <p style={{ fontSize: "0.9rem", marginBottom: "0.3rem" }}>
-                    Open daily · {s.hours}
-                  </p>
-                  <p style={{ fontSize: "0.9rem", marginBottom: "1.2rem" }}>{s.phone}</p>
+                  {s.hours && (
+                    <p style={{ fontSize: "0.9rem", marginBottom: "0.3rem" }}>
+                      Open daily · {s.hours}
+                    </p>
+                  )}
+                  {s.phone && <p style={{ fontSize: "0.9rem", marginBottom: "1.2rem" }}>{s.phone}</p>}
                   <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap" }}>
                     <Link to={`/appointments`} className="btn btn-maroon" style={{ padding: "0.6rem 1.2rem" }}>
                       Book a visit

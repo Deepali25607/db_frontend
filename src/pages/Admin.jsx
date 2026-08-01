@@ -1376,10 +1376,108 @@ function DeliveryAreaPanel({ config, onSaved }) {
   );
 }
 
+/* Showrooms — the branch list behind /stores, the appointment booking form,
+   store pickup at checkout and the footfall report. Wholesale save, same as
+   the header/footer links; an empty list restores the standard branches. */
+function ShowroomsPanel({ onSaved }) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.stores().then((d) => setRows(d.stores.map((s) => ({ ...s })))).catch((e) => setError(e.message));
+  }, []);
+
+  const set = (i, field) => (e) => {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [field]: e.target.value } : r)));
+  };
+
+  const save = async (restore = false) => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const { stores } = await adminApi.patchStores(
+        restore ? [] : rows.map(({ name, address, hours, phone }) => ({ name, address, hours, phone }))
+      );
+      setRows(stores.map((s) => ({ ...s })));
+      setNote(restore ? "Standard branches restored." : "Branches saved — live on the Showrooms and appointment pages.");
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && rows === null) return <p className="form-error">{error}</p>;
+  if (rows === null) return <div className="skeleton" style={{ height: 240 }} />;
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        These branches appear on the Showrooms page, the appointment booking
+        form, and as pickup choices at checkout. Past appointments and orders
+        keep the branch they were made with, even after edits.
+      </p>
+      {note && <p className="admin-note">{note}</p>}
+      {error && <p className="form-error">{error}</p>}
+
+      <div style={{ display: "grid", gap: "0.9rem" }}>
+        {rows.map((r, i) => (
+          <div
+            key={i}
+            className="shr-row"
+            style={{ display: "grid", gap: "0.55rem", padding: "0.9rem 1rem", background: "var(--paper)", border: "1px solid var(--line-soft)", borderRadius: 12 }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.55rem" }}>
+              <input value={r.name} onChange={set(i, "name")} placeholder="Branch name — e.g. Indore — Palasia" maxLength={60} />
+              <input value={r.phone} onChange={set(i, "phone")} placeholder="Phone (optional)" maxLength={20} />
+            </div>
+            <input value={r.address} onChange={set(i, "address")} placeholder="Full address" maxLength={140} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.55rem", alignItems: "center" }}>
+              <input value={r.hours} onChange={set(i, "hours")} placeholder="Opening hours — e.g. 10:30 am – 8:30 pm (optional)" maxLength={40} />
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: "0.45rem 0.9rem" }}
+                disabled={busy || rows.length <= 1}
+                onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
+              >
+                Remove branch
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginTop: "1.1rem" }}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          style={{ padding: "0.5rem 1.1rem" }}
+          disabled={busy || rows.length >= 8}
+          onClick={() => setRows((prev) => [...prev, { name: "", address: "", hours: "", phone: "" }])}
+        >
+          + Add a branch
+        </button>
+        <button type="button" className="btn btn-maroon" style={{ padding: "0.5rem 1.4rem" }} disabled={busy} onClick={() => save(false)}>
+          {busy ? "Saving…" : "Save branches"}
+        </button>
+        <button type="button" className="btn btn-outline" style={{ padding: "0.5rem 1.1rem" }} disabled={busy} onClick={() => save(true)}>
+          Restore standard branches
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Settings() {
   const [data, setData] = useState(null);
   const [content, setContent] = useState(null);
   const [auditRows, setAuditRows] = useState(null);
+  const [storeRows, setStoreRows] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState(null); // null = hub
 
@@ -1387,6 +1485,7 @@ function Settings() {
     adminApi.config().then(setData).catch((e) => setError(e.message));
     api.content().then(setContent).catch(() => {});
     adminApi.auditLog().then(setAuditRows).catch(() => {});
+    api.stores().then((d) => setStoreRows(d.stores)).catch(() => {});
   }, []);
 
   useEffect(refresh, [refresh]);
@@ -1436,6 +1535,15 @@ function Settings() {
       chip: content?.supportPhone || content?.supportWhatsapp || content?.supportEmail
         ? content.supportPhone || content.supportWhatsapp || content.supportEmail
         : "hidden from customers",
+    },
+    {
+      key: "showrooms",
+      glyph: "⌂",
+      title: "Showrooms",
+      desc: "The branch cards on the Showrooms and appointment pages, and pickup.",
+      chip: storeRows
+        ? `${storeRows.length} branch${storeRows.length === 1 ? "" : "es"}`
+        : "…",
     },
     {
       key: "discounts",
@@ -1516,6 +1624,7 @@ function Settings() {
         {view === "branding" && <BrandingPanel onSaved={refresh} />}
         {view === "support" && <SupportPanel onSaved={refresh} />}
         {view === "policy" && <OrderPolicyPanel config={data.config} onSaved={refresh} />}
+        {view === "showrooms" && <ShowroomsPanel onSaved={refresh} />}
         {view === "appearance" && <AppearancePanel onSaved={refresh} />}
         {view === "headerfooter" && <HeaderFooterPanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}

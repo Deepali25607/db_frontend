@@ -301,6 +301,8 @@ export const adminApi = {
   config: () => request("/api/admin/config", { headers: adminHeaders() }),
   patchContent: (body) =>
     request("/api/admin/content", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify(body) }),
+  patchStores: (stores) =>
+    request("/api/admin/stores", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ stores }) }),
   uploadFile: async (file) => {
     const res = await fetch(`/api/admin/uploads?name=${encodeURIComponent(file.name)}`, {
       method: "POST",
