@@ -1563,6 +1563,163 @@ function DeliveryAreaPanel({ config, onSaved }) {
   );
 }
 
+/* Category promotions — sale-banner images marquee-ing under the homepage
+   hero, each linked to a category listing. Disable a row to end a sale
+   without losing the upload; ▲▼ set the on-screen order. */
+function CategoryPromoPanel({ onSaved }) {
+  const [rows, setRows] = useState(null);
+  const [cats, setCats] = useState([]);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.content().then((c) => setRows((c.promoBanners || []).map((b) => ({ ...b })))).catch((e) => setError(e.message));
+    api.categories().then(setCats).catch(() => {});
+  }, []);
+
+  const set = (i, field, value) => {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [field]: value } : r)));
+  };
+
+  const move = (i, dir) => {
+    setRows((prev) => {
+      const next = [...prev];
+      const j = i + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  };
+
+  const upload = (i) => async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await adminApi.uploadFile(file);
+      if (i === null) setRows((prev) => [...prev, { image: url, category: "", alt: "", on: true, hMobile: 0, hDesktop: 0 }]);
+      else set(i, "image", url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      await adminApi.patchContent({
+        promoBanners: rows.map((r) => ({
+          image: r.image, category: r.category || "", alt: r.alt || "",
+          on: r.on !== false, hMobile: Number(r.hMobile) || 0, hDesktop: Number(r.hDesktop) || 0,
+        })),
+      });
+      const live = rows.filter((r) => r.on !== false).length;
+      setNote(rows.length === 0 ? "No banners — the homepage marquee is hidden." : `Saved — ${live} of ${rows.length} live on the homepage.`);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && rows === null) return <p className="form-error">{error}</p>;
+  if (rows === null) return <div className="skeleton" style={{ height: 220 }} />;
+
+  const lbl = { display: "grid", gap: "0.2rem", fontSize: "0.68rem", color: "var(--ink-faint)", textTransform: "uppercase", letterSpacing: "0.06em" };
+  const catKeys = cats.map((c) => c.key);
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        Sale-banner images that scroll across the homepage under the hero —
+        tapping one opens its category in the shop. Disable a row to hide it
+        without losing the upload; ▲▼ set the order; heights are optional
+        (blank = auto).
+      </p>
+      {note && <p className="admin-note">{note}</p>}
+      {error && <p className="form-error">{error}</p>}
+
+      <div style={{ display: "grid", gap: "0.9rem" }}>
+        {rows.map((r, i) => (
+          <div key={i} className="cp-row" style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: "0.8rem", padding: "0.9rem 1rem", background: "var(--paper)", border: "1px solid var(--line-soft)", borderRadius: 12, opacity: r.on === false ? 0.65 : 1 }}>
+            <div style={{ display: "grid", gap: "0.4rem", alignContent: "start" }}>
+              <img src={r.image} alt="" style={{ width: 110, height: 74, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line-soft)" }} />
+              <label className="btn btn-outline" style={{ cursor: "pointer", padding: "0.3rem 0.6rem", fontSize: "0.68rem" }}>
+                Replace
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" hidden onChange={upload(i)} disabled={busy} />
+              </label>
+            </div>
+            <div style={{ display: "grid", gap: "0.55rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.4fr 2fr auto", gap: "0.55rem", alignItems: "end" }}>
+                <label style={lbl}>
+                  Links to category
+                  <select value={r.category || ""} onChange={(e) => set(i, "category", e.target.value)}>
+                    <option value="">All products</option>
+                    {cats.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                    {r.category && !catKeys.includes(r.category) && (
+                      <option value={r.category}>⚠ {r.category} (not in catalogue)</option>
+                    )}
+                  </select>
+                </label>
+                <label style={lbl}>
+                  Image alt text (accessibility)
+                  <input value={r.alt || ""} onChange={(e) => set(i, "alt", e.target.value)} placeholder="e.g. Diwali sale — 10% off rings" maxLength={80} />
+                </label>
+                <label style={{ ...lbl, textAlign: "center" }}>
+                  Live
+                  <input type="checkbox" checked={r.on !== false} onChange={(e) => set(i, "on", e.target.checked)} style={{ height: 34 }} />
+                </label>
+              </div>
+              {r.category && !catKeys.includes(r.category) && (
+                <p className="muted" style={{ fontSize: "0.76rem", margin: 0, color: "var(--maroon-bright)" }}>
+                  “{r.category}” isn't in your catalogue — clicks fall back to
+                  All products until you pick a current category.
+                </p>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto auto", gap: "0.55rem", alignItems: "end" }}>
+                <label style={lbl}>
+                  Mobile height px (blank = auto)
+                  <input type="number" min={40} max={600} value={r.hMobile || ""} onChange={(e) => set(i, "hMobile", e.target.value)} placeholder="auto" />
+                </label>
+                <label style={lbl}>
+                  Desktop height px (blank = auto)
+                  <input type="number" min={40} max={600} value={r.hDesktop || ""} onChange={(e) => set(i, "hDesktop", e.target.value)} placeholder="auto" />
+                </label>
+                <button type="button" className="btn btn-outline" style={{ padding: "0.4rem 0.7rem" }} disabled={busy || i === 0} onClick={() => move(i, -1)} aria-label="Move up">▲</button>
+                <button type="button" className="btn btn-outline" style={{ padding: "0.4rem 0.7rem" }} disabled={busy || i === rows.length - 1} onClick={() => move(i, 1)} aria-label="Move down">▼</button>
+                <button type="button" className="btn btn-outline" style={{ padding: "0.4rem 0.9rem" }} disabled={busy} onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}>
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <p className="muted" style={{ fontSize: "0.84rem" }}>No banners yet — upload the first sale image below.</p>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginTop: "1.1rem", alignItems: "center" }}>
+        <label className="btn btn-outline" style={{ cursor: "pointer", padding: "0.5rem 1.1rem", opacity: rows.length >= 6 ? 0.5 : 1 }}>
+          {busy ? "Working…" : "⤒ Upload banner…"}
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" hidden onChange={upload(null)} disabled={busy || rows.length >= 6} />
+        </label>
+        <button type="button" className="btn btn-maroon" style={{ padding: "0.5rem 1.4rem" }} disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save banners"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* Gold scheme plans — the instalment plans customers enrol in on the Gold
    Scheme page. Keys stay stable across renames; a plan customers hold
    schemes on can be edited but never removed (the server enforces it). */
@@ -2045,6 +2202,17 @@ function Settings() {
           : "Heritage Cream") + (content?.backgroundImage ? " + picture" : ""),
     },
     {
+      key: "catpromo",
+      glyph: "▧",
+      title: "Category promotions",
+      desc: "Sale banners scrolling on the homepage, each opening a category.",
+      chip: (() => {
+        const all = content?.promoBanners || [];
+        const live = all.filter((b) => b.on !== false).length;
+        return all.length ? `${live} of ${all.length} live` : "none yet";
+      })(),
+    },
+    {
       key: "hero",
       glyph: "▶",
       title: "Homepage hero media",
@@ -2088,6 +2256,7 @@ function Settings() {
         {view === "showrooms" && <ShowroomsPanel onSaved={refresh} />}
         {view === "emi" && <EmiPlansPanel onSaved={refresh} />}
         {view === "goldplans" && <SchemeVariantsPanel onSaved={refresh} />}
+        {view === "catpromo" && <CategoryPromoPanel onSaved={refresh} />}
         {view === "appearance" && <AppearancePanel onSaved={refresh} />}
         {view === "headerfooter" && <HeaderFooterPanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}

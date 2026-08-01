@@ -73,6 +73,43 @@ function HeroSlides({ slides }) {
   );
 }
 
+// Category-wise sale banners (Admin → Settings → Category promotions): a
+// slow marquee under the hero; tapping a banner opens its category in the
+// shop. Unknown/blank categories fall back to the full collection.
+function PromoMarquee({ banners, categoryKeys }) {
+  const live = banners.filter((b) => b.on !== false && b.image);
+  if (live.length === 0) return null;
+  const linkFor = (b) =>
+    b.category && categoryKeys.includes(b.category)
+      ? `/shop?category=${encodeURIComponent(b.category)}`
+      : "/shop";
+  const loop = [...live, ...live];
+  return (
+    <div className="promo-marquee" aria-label="Current promotions">
+      <div className={`promo-track ${live.length < 3 ? "few" : ""}`}>
+        {loop.map((b, i) => (
+          <Link
+            key={i}
+            to={linkFor(b)}
+            aria-hidden={i >= live.length || undefined}
+            tabIndex={i >= live.length ? -1 : undefined}
+          >
+            <img
+              src={b.image}
+              alt={b.alt || "Sale promotion"}
+              loading="lazy"
+              style={{
+                "--pb-m": b.hMobile ? `${b.hMobile}px` : undefined,
+                "--pb-d": b.hDesktop ? `${b.hDesktop}px` : undefined,
+              }}
+            />
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [featured, setFeatured] = useState(null);
   const [categories, setCategories] = useState(null);
@@ -142,6 +179,14 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* --------- category-wise sale banners (Settings → Category promotions) */}
+      {Array.isArray(content?.promoBanners) && (
+        <PromoMarquee
+          banners={content.promoBanners}
+          categoryKeys={(categories || []).map((c) => c.key)}
+        />
+      )}
 
       {/* -------------------------------------------------- stats */}
       <section className="stats-band">

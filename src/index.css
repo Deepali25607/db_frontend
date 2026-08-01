@@ -1759,6 +1759,63 @@ h1, h2, h3, h4 {
   color: var(--ink);
 }
 
+/* category promotion marquee (Settings → Category promotions) */
+.promo-marquee {
+  overflow: hidden;
+  background: var(--cream-2);
+  border-block: 1px solid var(--line-soft);
+}
+
+.promo-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  gap: 1.1rem;
+  padding: 0.9rem 0;
+  animation: promoScroll 42s linear infinite;
+}
+
+/* with one or two banners the loop would look sparse — drift slower */
+.promo-track.few {
+  animation-duration: 26s;
+}
+
+.promo-marquee:hover .promo-track {
+  animation-play-state: paused;
+}
+
+.promo-track img {
+  height: var(--pb-m, 96px);
+  width: auto;
+  display: block;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+}
+
+@media (min-width: 861px) {
+  .promo-track img {
+    height: var(--pb-d, 150px);
+  }
+}
+
+@keyframes promoScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-50% - 0.55rem));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .promo-track {
+    animation: none;
+  }
+  .promo-marquee {
+    overflow-x: auto;
+  }
+}
+
 /* track page — the order piece by piece */
 .track-lines {
   list-style: none;
