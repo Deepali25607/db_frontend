@@ -1382,6 +1382,123 @@ function DeliveryAreaPanel({ config, onSaved }) {
   );
 }
 
+/* Gold scheme plans — the instalment plans customers enrol in on the Gold
+   Scheme page. Keys stay stable across renames; a plan customers hold
+   schemes on can be edited but never removed (the server enforces it). */
+function SchemeVariantsPanel({ onSaved }) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.schemes().then((v) => setRows(v.map((x) => ({ ...x })))).catch((e) => setError(e.message));
+  }, []);
+
+  const set = (i, field) => (e) => {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [field]: e.target.value } : r)));
+  };
+
+  const save = async (restore = false) => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const { variants } = await adminApi.patchSchemeVariants(
+        restore
+          ? []
+          : rows.map((r) => ({
+              key: r.key || "",
+              name: r.name,
+              tenureMonths: Number(r.tenureMonths),
+              minMonthly: Number(r.minMonthly),
+              bonus: r.bonus || "",
+              blurb: r.blurb || "",
+            }))
+      );
+      setRows(variants.map((x) => ({ ...x })));
+      setNote(restore ? "Standard plans restored." : "Plans saved — live on the Gold Scheme page.");
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && rows === null) return <p className="form-error">{error}</p>;
+  if (rows === null) return <div className="skeleton" style={{ height: 240 }} />;
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        The instalment plans on the Gold Scheme page. Grams always accrue at
+        the day's 22K rate — a plan defines the tenure, the minimum monthly
+        instalment, and the bonus promised at redemption. Plans customers
+        already hold schemes on can be renamed and re-worded, but not removed.
+      </p>
+      {note && <p className="admin-note">{note}</p>}
+      {error && <p className="form-error">{error}</p>}
+
+      <div style={{ display: "grid", gap: "0.9rem" }}>
+        {rows.map((r, i) => (
+          <div
+            key={i}
+            className="gsv-row"
+            style={{ display: "grid", gap: "0.55rem", padding: "0.9rem 1rem", background: "var(--paper)", border: "1px solid var(--line-soft)", borderRadius: 12 }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "0.55rem" }}>
+              <label style={{ display: "grid", gap: "0.2rem", fontSize: "0.72rem", color: "var(--ink-faint)" }}>
+                Plan name
+                <input value={r.name} onChange={set(i, "name")} placeholder="e.g. Swarna 11+1" maxLength={40} />
+              </label>
+              <label style={{ display: "grid", gap: "0.2rem", fontSize: "0.72rem", color: "var(--ink-faint)" }}>
+                Tenure (months)
+                <input type="number" min={3} max={60} value={r.tenureMonths} onChange={set(i, "tenureMonths")} />
+              </label>
+              <label style={{ display: "grid", gap: "0.2rem", fontSize: "0.72rem", color: "var(--ink-faint)" }}>
+                Min monthly ₹
+                <input type="number" min={500} max={100000} step={500} value={r.minMonthly} onChange={set(i, "minMonthly")} />
+              </label>
+            </div>
+            <input value={r.bonus} onChange={set(i, "bonus")} placeholder="Redemption bonus — e.g. Making charges waived up to 50%" maxLength={120} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.55rem", alignItems: "center" }}>
+              <input value={r.blurb} onChange={set(i, "blurb")} placeholder="One-line description shown on the plan card" maxLength={160} />
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: "0.45rem 0.9rem" }}
+                disabled={busy || rows.length <= 1}
+                onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
+              >
+                Remove plan
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginTop: "1.1rem" }}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          style={{ padding: "0.5rem 1.1rem" }}
+          disabled={busy || rows.length >= 6}
+          onClick={() => setRows((prev) => [...prev, { key: "", name: "", tenureMonths: 12, minMonthly: 1000, bonus: "", blurb: "" }])}
+        >
+          + Add a plan
+        </button>
+        <button type="button" className="btn btn-maroon" style={{ padding: "0.5rem 1.4rem" }} disabled={busy} onClick={() => save(false)}>
+          {busy ? "Saving…" : "Save plans"}
+        </button>
+        <button type="button" className="btn btn-outline" style={{ padding: "0.5rem 1.1rem" }} disabled={busy} onClick={() => save(true)}>
+          Restore standard plans
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* EMI & bank partners — financing schemes shown on every product page.
    The PDP headlines the cheapest eligible plan; with no plans it shows the
    simple interest-free line using the Checkout & payments tenure. */
@@ -1614,6 +1731,7 @@ function Settings() {
   const [auditRows, setAuditRows] = useState(null);
   const [storeRows, setStoreRows] = useState(null);
   const [emiPlans, setEmiPlans] = useState(null);
+  const [schemeVariants, setSchemeVariants] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState(null); // null = hub
 
@@ -1623,6 +1741,7 @@ function Settings() {
     adminApi.auditLog().then(setAuditRows).catch(() => {});
     api.stores().then((d) => setStoreRows(d.stores)).catch(() => {});
     api.config().then((c) => setEmiPlans(c.emiPlans || [])).catch(() => {});
+    api.schemes().then(setSchemeVariants).catch(() => {});
   }, []);
 
   useEffect(refresh, [refresh]);
@@ -1672,6 +1791,15 @@ function Settings() {
       chip: content?.supportPhone || content?.supportWhatsapp || content?.supportEmail
         ? content.supportPhone || content.supportWhatsapp || content.supportEmail
         : "hidden from customers",
+    },
+    {
+      key: "goldplans",
+      glyph: "◈",
+      title: "Gold scheme plans",
+      desc: "The instalment plans customers enrol in on the Gold Scheme page.",
+      chip: schemeVariants
+        ? `${schemeVariants.length} plan${schemeVariants.length === 1 ? "" : "s"}`
+        : "…",
     },
     {
       key: "emi",
@@ -1772,6 +1900,7 @@ function Settings() {
         {view === "policy" && <OrderPolicyPanel config={data.config} onSaved={refresh} />}
         {view === "showrooms" && <ShowroomsPanel onSaved={refresh} />}
         {view === "emi" && <EmiPlansPanel onSaved={refresh} />}
+        {view === "goldplans" && <SchemeVariantsPanel onSaved={refresh} />}
         {view === "appearance" && <AppearancePanel onSaved={refresh} />}
         {view === "headerfooter" && <HeaderFooterPanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}
