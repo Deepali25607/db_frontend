@@ -502,7 +502,11 @@ export default function Product() {
                   <tr>
                     <td>
                       {price.discountLabel
-                        ? `${price.discountLabel}${price.discountBase === "making" ? " — on making charges" : ` — ${price.discountPct}% off`}`
+                        ? `${price.discountLabel}${
+                            price.discountBase === "making"
+                              ? ` — ${price.discountRatePct || price.discountPct}% off making charges`
+                              : ` — ${price.discountRatePct || price.discountPct}% off`
+                          }`
                         : `Discount — ${price.discountPct}% off`}
                     </td>
                     <td>−{formatINR(price.discountValue)}</td>
