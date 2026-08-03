@@ -3563,10 +3563,7 @@ function OrderDrawer({ order: o, onClose, onMove, busy }) {
                   className="btn btn-outline od-danger"
                   style={{ padding: "0.5rem 1.1rem" }}
                   disabled={busy}
-                  onClick={() => {
-                    if (s !== "Cancelled" || window.confirm(`Cancel ${o.orderId}? Stock returns to the shelf and the customer is notified.`))
-                      onMove(o.orderId, s);
-                  }}
+                  onClick={() => onMove(o.orderId, s)}
                 >
                   {s === "Cancelled" ? "Cancel order" : `Mark ${s}`}
                 </button>
@@ -3599,6 +3596,19 @@ function OrderDrawer({ order: o, onClose, onMove, busy }) {
               </div>
             </div>
           )}
+          {o.location && (
+            <p className="od-fine" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <a
+                className="link-underline"
+                href={`https://www.google.com/maps?q=${o.location.lat},${o.location.lng}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open in Google Maps ↗
+              </a>
+              <span className="status-pill" style={{ background: "rgba(63,108,76,.14)" }}>Live GPS pin</span>
+            </p>
+          )}
           {o.gift && (
             <p className="muted od-fine">
               Gift-wrapped{o.gift.hideInvoiceValue ? " · packing slip hides values" : ""}
@@ -3624,6 +3634,24 @@ function OrderDrawer({ order: o, onClose, onMove, busy }) {
             </div>
           ))}
         </section>
+
+        {(o.deliveryPhotos || []).length > 0 && (
+          <section className="od-card">
+            <h4>Open-box delivery photos</h4>
+            <div className="od-photos">
+              {o.deliveryPhotos.map((p, i) => (
+                <figure key={i}>
+                  <a href={p.url} target="_blank" rel="noreferrer">
+                    <img src={p.url} alt={`Delivery photo ${i + 1}`} loading="lazy" />
+                  </a>
+                  <figcaption className="muted">
+                    {fmtDate(p.uploadedAt)} · {p.uploadedBy}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="od-card">
           <h4>Totals</h4>
@@ -3656,12 +3684,127 @@ function OrderDrawer({ order: o, onClose, onMove, busy }) {
                   {fmtDate(t.at)}
                   {t.by ? ` · by ${t.by}` : ""}
                   {t.note ? ` · ${t.note}` : ""}
+                  {t.paymentCollected ? " · COD collected at the door" : ""}
+                  {t.photoCount ? ` · ${t.photoCount} open-box photo${t.photoCount > 1 ? "s" : ""}` : ""}
                 </span>
               </li>
             ))}
           </ol>
         </section>
       </aside>
+    </>
+  );
+}
+
+/* Confirmation step for every transition — optional note for the timeline,
+   a red warning when cancelling, and on Delivered an open-box photo
+   uploader plus a heads-up that a pending COD flips to paid. */
+function TransitionModal({ order: o, to, onClose, onConfirm, busy }) {
+  const [note, setNote] = useState("");
+  const [photos, setPhotos] = useState([]); // [{url}]
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState(null);
+  const delivering = to === "Delivered";
+  const codPending = delivering && o.payment.mode === "cod" && o.payment.status !== "paid";
+
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const upload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    if (photos.length + files.length > 8) {
+      setErr("At most 8 open-box photos per delivery.");
+      return;
+    }
+    setUploading(true);
+    setErr(null);
+    try {
+      for (const file of files) {
+        if (file.size > 100 * 1024 * 1024) throw new Error(`${file.name} is over 100 MB.`);
+        const { url } = await adminApi.uploadFile(file);
+        setPhotos((prev) => [...prev, { url }]);
+      }
+    } catch (ex) {
+      setErr(ex.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="od-overlay" style={{ zIndex: 242 }} onClick={onClose} />
+      <div className="od-modal" role="dialog" aria-label={`Confirm status change to ${to}`}>
+        <h3>Update order status</h3>
+        <p className="od-fromto">
+          <StatusPill status={o.status} /> <span aria-hidden>→</span> <StatusPill status={to} />
+        </p>
+        {to === "Cancelled" && (
+          <p className="od-warn">
+            Cancelling returns every piece to stock and cannot be undone. The
+            customer is notified immediately.
+          </p>
+        )}
+        {codPending && (
+          <p className="od-info">
+            Cash-on-delivery order — marking it delivered records the payment
+            as collected and raises the tax invoice.
+          </p>
+        )}
+        <label className="field" style={{ display: "block" }}>
+          <span className="muted" style={{ fontSize: "0.78rem" }}>
+            Note for the order timeline (optional, {500 - note.length} left)
+          </span>
+          <textarea
+            rows={3}
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={to === "Cancelled" ? "Reason for cancellation…" : "e.g. handed to courier, AWB 1234…"}
+            style={{ width: "100%", marginTop: "0.3rem" }}
+          />
+        </label>
+        {delivering && (
+          <div style={{ marginTop: "0.7rem" }}>
+            <span className="muted" style={{ fontSize: "0.78rem" }}>
+              Open-box photos at handover (optional, up to 8)
+            </span>
+            <div className="od-photo-stage">
+              {photos.map((p, i) => (
+                <span key={p.url} className="od-photo-thumb">
+                  <img src={p.url} alt={`Open-box photo ${i + 1}`} />
+                  <button aria-label="Remove photo" onClick={() => setPhotos((prev) => prev.filter((x) => x.url !== p.url))}>✕</button>
+                </span>
+              ))}
+              {photos.length < 8 && (
+                <label className="btn btn-outline" style={{ padding: "0.45rem 0.9rem", cursor: "pointer" }}>
+                  {uploading ? "Uploading…" : "⤒ Add photos"}
+                  <input type="file" accept="image/*" capture="environment" multiple hidden onChange={upload} disabled={uploading} />
+                </label>
+              )}
+            </div>
+          </div>
+        )}
+        {err && <p className="form-error">{err}</p>}
+        <div className="od-actions" style={{ marginTop: "1rem" }}>
+          <button
+            className={`btn ${to === "Cancelled" ? "btn-outline od-danger" : "btn-maroon"}`}
+            style={{ padding: "0.5rem 1.2rem" }}
+            disabled={busy || uploading}
+            onClick={() => onConfirm({ status: to, note: note.trim() || undefined, deliveryPhotos: photos.length ? photos : undefined })}
+          >
+            {busy ? "Updating…" : to === "Cancelled" ? "Cancel this order" : `Confirm — ${to}`}
+          </button>
+          <button className="btn btn-outline" style={{ padding: "0.5rem 1.2rem" }} onClick={onClose} disabled={busy}>
+            Keep as is
+          </button>
+        </div>
+      </div>
     </>
   );
 }
@@ -3673,21 +3816,53 @@ function Orders() {
   const [open, setOpen] = useState(null); // orderId shown in the drawer
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ q: "", cust: "", status: "", pay: "", from: "", to: "" });
+  const [page, setPage] = useState(1);
+  const [confirm, setConfirm] = useState(null); // {orderId, to} awaiting the modal
 
-  const refresh = useCallback(() => {
-    adminApi.orders().then(setData).catch((e) => setError(e.message));
-  }, []);
+  // server-side filtering + pagination; the short debounce keeps typing smooth
+  useEffect(() => {
+    const t = setTimeout(() => {
+      adminApi
+        .orders({ q: f.q.trim(), customer: f.cust.trim(), status: f.status, payment: f.pay, from: f.from, to: f.to, page, limit: 20 })
+        .then((d) => {
+          setData(d);
+          setError(null);
+        })
+        .catch((e) => setError(e.message));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [f, page]);
 
-  useEffect(refresh, [refresh]);
+  // any filter change restarts from page 1
+  const set = (k) => (e) => {
+    const value = e.target.value;
+    setPage(1);
+    setF((prev) => ({ ...prev, [k]: value }));
+  };
 
-  const move = async (orderId, status) => {
+  const move = async (orderId, body) => {
     setError(null);
     setNote(null);
     setBusy(true);
     try {
-      await adminApi.setOrderStatus(orderId, status);
-      setNote(`${orderId} → ${status} — the customer has been notified.`);
-      refresh();
+      const res = await adminApi.setOrderStatus(orderId, body);
+      // splice the updated order in place — filters and page stay put
+      setData((prev) => {
+        if (!prev) return prev;
+        const before = prev.orders.find((o) => o.orderId === orderId);
+        const counts = { ...prev.meta?.counts };
+        if (before && counts[before.status]) {
+          counts[before.status] -= 1;
+          counts[res.order.status] = (counts[res.order.status] || 0) + 1;
+        }
+        return {
+          ...prev,
+          orders: prev.orders.map((o) => (o.orderId === orderId ? res.order : o)),
+          meta: prev.meta ? { ...prev.meta, counts } : prev.meta,
+        };
+      });
+      setNote(`${orderId} → ${body.status} — the customer has been notified.`);
+      setConfirm(null);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -3698,32 +3873,20 @@ function Orders() {
   if (error && !data) return <p className="form-error">{error}</p>;
   if (!data) return <div className="skeleton" style={{ height: 300 }} />;
 
-  const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
-  const day = (iso) => iso.slice(0, 10);
-  const filtered = data.orders.filter((o) => {
-    if (f.q && !o.orderId.toLowerCase().includes(f.q.trim().toLowerCase())) return false;
-    if (f.cust) {
-      const needle = f.cust.trim().toLowerCase();
-      const hay = `${o.customer.name} ${o.customer.phone} ${o.customer.email || ""}`.toLowerCase();
-      if (!hay.includes(needle)) return false;
-    }
-    if (f.status && o.status !== f.status) return false;
-    if (f.pay && o.payment.status !== f.pay) return false;
-    if (f.from && day(o.placedAt) < f.from) return false;
-    if (f.to && day(o.placedAt) > f.to) return false;
-    return true;
-  });
-  const counts = {};
-  for (const o of data.orders) counts[o.status] = (counts[o.status] || 0) + 1;
-  const payStates = [...new Set(data.orders.map((o) => o.payment.status))];
+  const filtered = data.orders;
+  const meta = data.meta || { page: 1, total: filtered.length, totalPages: 1, counts: {} };
+  const counts = meta.counts || {};
+  const everPlaced = Object.values(counts).reduce((s, n) => s + n, 0);
+  const payStates = ["unpaid", "cod-pending", "paid", "failed", "refunded"];
   const current = open && data.orders.find((o) => o.orderId === open);
+  const confirming = confirm && data.orders.find((o) => o.orderId === confirm.orderId);
   const lbl = { fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", display: "grid", gap: "0.25rem" };
 
   return (
     <>
       {error && <p className="form-error">{error}</p>}
       {note && <p className="admin-note">{note}</p>}
-      {data.orders.length === 0 ? (
+      {everPlaced === 0 ? (
         <p className="muted">No orders yet — place one from the storefront.</p>
       ) : (
         <>
@@ -3740,7 +3903,7 @@ function Orders() {
               Status
               <select value={f.status} onChange={set("status")}>
                 <option value="">All</option>
-                {[...new Set(["Verification Pending", ...data.flow, ...data.special, ...data.orders.map((o) => o.status)])].map((s) => (
+                {[...new Set(["Verification Pending", ...data.flow, ...data.special, ...Object.keys(counts)])].map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
@@ -3773,7 +3936,10 @@ function Orders() {
                 key={s}
                 className="status-pill"
                 style={{ ...STATUS_TINT[s], border: "none", cursor: "pointer", opacity: f.status && f.status !== s ? 0.45 : 1 }}
-                onClick={() => setF((prev) => ({ ...prev, status: prev.status === s ? "" : s }))}
+                onClick={() => {
+                  setPage(1);
+                  setF((prev) => ({ ...prev, status: prev.status === s ? "" : s }));
+                }}
                 title={`Show only ${s}`}
               >
                 {s} · {n}
@@ -3811,13 +3977,46 @@ function Orders() {
               )}
             </tbody>
           </table>
-          <p className="muted" style={{ fontSize: "0.78rem" }}>
-            {filtered.length} of {data.orders.length} orders · click a row for
-            full details, documents and status controls.
-          </p>
+          <div className="od-listfoot">
+            <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
+              Showing {filtered.length} of {meta.total} order{meta.total === 1 ? "" : "s"} · click a row for full details and status controls.
+            </p>
+            <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
+              {meta.totalPages > 1 && (
+                <span style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
+                  <button className="btn btn-outline" style={{ padding: "0.35rem 0.9rem" }} disabled={meta.page <= 1} onClick={() => setPage(meta.page - 1)}>
+                    ← Prev
+                  </button>
+                  <span className="muted" style={{ fontSize: "0.78rem" }}>Page {meta.page} of {meta.totalPages}</span>
+                  <button className="btn btn-outline" style={{ padding: "0.35rem 0.9rem" }} disabled={meta.page >= meta.totalPages} onClick={() => setPage(meta.page + 1)}>
+                    Next →
+                  </button>
+                </span>
+              )}
+              <a className="btn btn-outline" style={{ padding: "0.35rem 0.9rem" }} href={adminApi.exportUrl("orders")}>
+                ⤓ Export CSV
+              </a>
+            </div>
+          </div>
         </>
       )}
-      {current && <OrderDrawer order={current} onClose={() => setOpen(null)} onMove={move} busy={busy} />}
+      {current && (
+        <OrderDrawer
+          order={current}
+          onClose={() => setOpen(null)}
+          onMove={(orderId, to) => setConfirm({ orderId, to })}
+          busy={busy}
+        />
+      )}
+      {confirming && (
+        <TransitionModal
+          order={confirming}
+          to={confirm.to}
+          onClose={() => setConfirm(null)}
+          onConfirm={(body) => move(confirming.orderId, body)}
+          busy={busy}
+        />
+      )}
     </>
   );
 }

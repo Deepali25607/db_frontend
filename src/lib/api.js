@@ -212,12 +212,17 @@ export const adminApi = {
   logout: () => localStorage.removeItem("dpj_admin_key"),
   hasKey: () => Boolean(localStorage.getItem("dpj_admin_key")),
   summary: () => request("/api/admin/summary", { headers: adminHeaders() }),
-  orders: () => request("/api/admin/orders", { headers: adminHeaders() }),
-  setOrderStatus: (orderId, status) =>
+  orders: (params) => {
+    const qs = params
+      ? "?" + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null)).toString()
+      : "";
+    return request(`/api/admin/orders${qs}`, { headers: adminHeaders() });
+  },
+  setOrderStatus: (orderId, statusOrBody) =>
     request(`/api/admin/orders/${orderId}/status`, {
       method: "PATCH",
       headers: adminHeaders(),
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(typeof statusOrBody === "string" ? { status: statusOrBody } : statusOrBody),
     }),
   rates: () => request("/api/admin/rates", { headers: adminHeaders() }),
   proposeRate: (payload) =>
