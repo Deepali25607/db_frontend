@@ -1816,6 +1816,140 @@ h1, h2, h3, h4 {
   }
 }
 
+/* category mega-menu band (desktop) — Bluestone-style header menu */
+.mega-band {
+  display: none;
+}
+
+@media (min-width: 861px) {
+  .mega-band {
+    display: block;
+    position: relative;
+    background: var(--maroon);
+    border-top: 1px solid rgba(217, 186, 112, 0.3);
+  }
+
+  .mega-items {
+    display: flex;
+    justify-content: center;
+    gap: 0.2rem;
+  }
+
+  .mega-top {
+    display: inline-block;
+    padding: 0.7rem 1.1rem;
+    color: var(--cream);
+    font-size: 0.76rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .mega-top span {
+    font-size: 0.6rem;
+    opacity: 0.7;
+  }
+
+  .mega-item:hover .mega-top,
+  .mega-item:focus-within .mega-top {
+    background: var(--maroon-deep);
+    color: var(--gold-light);
+  }
+
+  .mega-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    display: none;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 30px 50px -30px rgba(56, 7, 15, 0.5);
+    z-index: 70;
+  }
+
+  .mega-item:hover .mega-panel,
+  .mega-item:focus-within .mega-panel {
+    display: block;
+  }
+
+  .mega-cols {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1.2fr 1fr;
+    gap: 2.4rem;
+    padding: 1.9rem 0 2.2rem;
+  }
+
+  .mega-col h5 {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--line-soft);
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .mega-col > a {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.34rem 0;
+    font-size: 0.92rem;
+    color: var(--ink);
+    transition: color 0.2s ease;
+  }
+
+  .mega-col > a:hover {
+    color: var(--maroon);
+  }
+
+  .mega-col > a small {
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+
+  .mega-col > a.mega-view-all {
+    margin-top: 0.9rem;
+    border: 1px solid var(--ink);
+    border-radius: 3px;
+    padding: 0.6rem 1rem;
+    justify-content: center;
+    font-size: 0.74rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .mega-col > a.mega-view-all:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .mega-visual img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 0.7rem;
+  }
+
+  .mega-visual p {
+    font-size: 0.86rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .mega-visual .link-underline {
+    font-size: 0.84rem;
+    color: var(--maroon);
+  }
+}
+
 /* my profile — sidebar tabs + detail card */
 .profile-title {
   font-size: clamp(1.9rem, 3.4vw, 2.6rem);

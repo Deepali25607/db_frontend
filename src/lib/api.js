@@ -55,6 +55,7 @@ export const api = {
   track: (orderId, phone) =>
     request(`/api/track?orderId=${encodeURIComponent(orderId)}&phone=${encodeURIComponent(phone)}`),
   trackMy: (phone) => request(`/api/track/my?phone=${encodeURIComponent(phone)}`),
+  menu: () => request("/api/menu"),
   invoice: (orderId, phone) =>
     request(`/api/orders/${encodeURIComponent(orderId)}/invoice?phone=${encodeURIComponent(phone || "")}`, {
       headers: { "x-admin-key": localStorage.getItem("dpj_admin_key") || "" },

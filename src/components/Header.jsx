@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
+import { api } from "../lib/api";
 import { formatINR } from "../lib/format";
 import { BagIcon, CloseIcon, HeartIcon, MenuIcon, MoonIcon, SearchIcon, SunIcon, UserIcon } from "./Icons";
 
@@ -37,6 +38,89 @@ function RateTicker() {
   );
 }
 
+/* Category mega-menu (desktop): a dark band under the header — every
+   category opens a panel of popular styles, price ranges, metals with live
+   "starting at" prices, and a visual card. Data comes from /api/menu,
+   computed on the day's rates with current discounts. */
+const OCC_LABELS = {
+  wedding: "Wedding", festive: "Festive", daily: "Everyday",
+  party: "Party", office: "Office wear", gifting: "Gifting",
+};
+const METAL_LABELS = { gold: "Gold", silver: "Silver", platinum: "Platinum" };
+const PRICE_BANDS = [
+  { label: "Below ₹25,000", max: 25000 },
+  { label: "₹25,000 – ₹50,000", min: 25000, max: 50000 },
+  { label: "₹50,000 – ₹1,00,000", min: 50000, max: 100000 },
+  { label: "₹1,00,000 – ₹2,50,000", min: 100000, max: 250000 },
+  { label: "₹2,50,000 & above", min: 250000 },
+];
+
+function MegaMenu({ menu }) {
+  if (menu.length === 0) return null;
+  return (
+    <nav className="mega-band" aria-label="Shop by category">
+      <div className="container mega-items">
+        {menu.map((m) => (
+          <div key={m.key} className="mega-item">
+            <Link to={`/shop?category=${m.key}`} className="mega-top">
+              {m.label} <span aria-hidden>▾</span>
+            </Link>
+            <div className="mega-panel">
+              <div className="container mega-cols">
+                <div className="mega-col">
+                  <h5>Popular {m.label.toLowerCase()} styles</h5>
+                  {m.occasions.map((o) => (
+                    <Link key={o.key} to={`/shop?category=${m.key}&occasion=${o.key}`}>
+                      {OCC_LABELS[o.key] || o.key.charAt(0).toUpperCase() + o.key.slice(1)}
+                      <small>{o.count}</small>
+                    </Link>
+                  ))}
+                  <Link to={`/shop?category=${m.key}`} className="mega-view-all">
+                    View all {m.count} {m.label.toLowerCase()} design{m.count === 1 ? "" : "s"}
+                  </Link>
+                </div>
+                <div className="mega-col">
+                  <h5>By price range</h5>
+                  {PRICE_BANDS.map((b) => (
+                    <Link
+                      key={b.label}
+                      to={`/shop?category=${m.key}${b.min ? `&minPrice=${b.min}` : ""}${b.max ? `&maxPrice=${b.max}` : ""}`}
+                    >
+                      {b.label}
+                    </Link>
+                  ))}
+                </div>
+                <div className="mega-col">
+                  <h5>By metal &amp; purity</h5>
+                  {m.metals.map((x) => (
+                    <Link key={x.type} to={`/shop?category=${m.key}&metal=${x.type}`}>
+                      {METAL_LABELS[x.type] || x.type}
+                      <small>from {formatINR(x.from)}</small>
+                    </Link>
+                  ))}
+                  {m.purities.map((x) => (
+                    <Link key={x.purity} to={`/shop?category=${m.key}&purity=${encodeURIComponent(x.purity)}`}>
+                      {x.purity} pieces
+                      <small>from {formatINR(x.from)}</small>
+                    </Link>
+                  ))}
+                </div>
+                <div className="mega-col mega-visual">
+                  <img src={m.image} alt={m.label} loading="lazy" />
+                  <p className="muted">{m.tagline}</p>
+                  <Link to="/appointments" className="link-underline">
+                    Book a try-on at a showroom →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 // fallback while /api/content loads — mirrors DEFAULT_CONTENT.navLinks
 const DEFAULT_NAV = [
   { label: "Home", path: "/" },
@@ -57,6 +141,11 @@ export default function Header() {
   const headerBg = (content?.headerBgImage || "").trim();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [megaMenu, setMegaMenu] = useState([]);
+
+  useEffect(() => {
+    api.menu().then((d) => setMegaMenu(d.menu)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -145,6 +234,7 @@ export default function Header() {
             </Link>
           </div>
         </div>
+        <MegaMenu menu={megaMenu} />
       </header>
     </>
   );
