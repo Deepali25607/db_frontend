@@ -4221,3 +4221,29 @@ h1, h2, h3, h4 {
   flex-wrap: wrap;
   margin-top: 0.6rem;
 }
+
+/* customer directory — toolbar and avatar cells */
+.cust-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.cust-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.cust-avatar {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(30, 77, 59, 0.12);
+  color: var(--green, #1e4d3b);
+  font-family: var(--serif, "Playfair Display", serif);
+  font-size: 0.95rem;
+}

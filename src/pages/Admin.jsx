@@ -2550,9 +2550,31 @@ function RegionalFootfall() {
   );
 }
 
+/* Customer directory — CRM view over everyone who has transacted or signed
+   in. Headline KPIs, segment filters, sortable ordering and a CSV export;
+   a row opens the full profile (orders, schemes, rewards, appointments). */
+const TIER_TINT = {
+  Silver: { background: "rgba(120,120,120,.14)" },
+  Gold: { background: "rgba(176,141,87,.22)", color: "#6d5226" },
+  Platinum: { background: "rgba(70,90,140,.16)", color: "#33466f" },
+};
+
+const CUST_SORTS = {
+  recent: { label: "Recent activity", fn: null }, // server order
+  ltv: { label: "Lifetime value", fn: (a, b) => b.spend - a.spend },
+  orders: { label: "Most orders", fn: (a, b) => b.orders - a.orders },
+  points: { label: "Reward points", fn: (a, b) => b.points - a.points },
+  name: { label: "Name A–Z", fn: (a, b) => String(a.name || "").localeCompare(String(b.name || "")) },
+  newest: { label: "Newest members", fn: (a, b) => String(b.since || "").localeCompare(String(a.since || "")) },
+};
+
 function Customers() {
   const [rows, setRows] = useState(null);
   const [q, setQ] = useState("");
+  const [type, setType] = useState("");
+  const [tier, setTier] = useState("");
+  const [minOrders, setMinOrders] = useState("");
+  const [sort, setSort] = useState("recent");
   const [selected, setSelected] = useState(null);
   const [view, setView] = useState("directory"); // directory | footfall
   const [error, setError] = useState(null);
@@ -2566,18 +2588,36 @@ function Customers() {
   if (!rows) return <div className="skeleton" style={{ height: 300 }} />;
   if (selected) return <CustomerProfile phone={selected} onBack={() => { setSelected(null); refresh(); }} />;
 
+  // headline numbers over the whole book, not the filtered slice
+  const accounts = rows.filter((r) => r.registered).length;
+  const repeat = rows.filter((r) => r.orders >= 2).length;
+  const buyers = rows.filter((r) => r.orders > 0).length;
+  const revenue = rows.reduce((s, r) => s + r.spend, 0);
+  const orderCount = rows.reduce((s, r) => s + r.orders, 0);
+  const month = new Date().toISOString().slice(0, 7);
+  const newThisMonth = rows.filter((r) => (r.since || "").slice(0, 7) === month).length;
+
   const needle = q.trim().toLowerCase();
-  const shown = needle
-    ? rows.filter((r) =>
-        [r.name, r.phone, r.email].some((v) => v && String(v).toLowerCase().includes(needle))
-      )
-    : rows;
+  let shown = rows.filter((r) => {
+    if (needle && ![r.name, r.phone, r.email].some((v) => v && String(v).toLowerCase().includes(needle))) return false;
+    if (type === "account" && !r.registered) return false;
+    if (type === "guest" && r.registered) return false;
+    if (tier && r.tier !== tier) return false;
+    if (minOrders && r.orders < Number(minOrders)) return false;
+    return true;
+  });
+  if (CUST_SORTS[sort].fn) shown = [...shown].sort(CUST_SORTS[sort].fn);
+
+  const sel = {
+    padding: "0.5rem 0.65rem", border: "1px solid var(--line)", borderRadius: 9,
+    background: "var(--cream)", font: "inherit", fontSize: "0.86rem",
+  };
 
   return (
     <div>
       <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.9rem" }}>
         <h3 className="admin-subhead" style={{ margin: 0 }}>
-          Customers ({rows.length})
+          Customers
         </h3>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
           <button
@@ -2599,39 +2639,83 @@ function Customers() {
       {view === "footfall" && <RegionalFootfall />}
       {view === "footfall" ? null : (
       <>
-      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "0.9rem" }}>
-        Everyone who has transacted or signed in — registered accounts and guest
-        buyers alike. Open a row for the full profile.
-      </p>
-      <div className="field" style={{ maxWidth: 360, marginBottom: "1rem" }}>
+      <div className="kpi-grid" style={{ marginBottom: "1.4rem" }}>
+        <div className="kpi"><span>{rows.length}</span><label>Customers</label></div>
+        <div className="kpi"><span>{accounts} / {rows.length - accounts}</span><label>Accounts / guests</label></div>
+        <div className="kpi"><span>{repeat}{buyers ? ` · ${Math.round((repeat / buyers) * 100)}%` : ""}</span><label>Repeat buyers</label></div>
+        <div className="kpi"><span>{newThisMonth}</span><label>New this month</label></div>
+        <div className="kpi"><span>{formatINR(revenue)}</span><label>Lifetime revenue</label></div>
+        <div className="kpi"><span>{orderCount ? formatINR(Math.round(revenue / orderCount)) : "—"}</span><label>Avg order value</label></div>
+      </div>
+
+      <div className="cust-toolbar">
         <input
+          style={{ ...sel, flex: "1 1 220px" }}
           placeholder="Search name, mobile or email…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search customers"
         />
+        <select style={sel} value={type} onChange={(e) => setType(e.target.value)} aria-label="Customer type">
+          <option value="">All types</option>
+          <option value="account">Accounts</option>
+          <option value="guest">Guests</option>
+        </select>
+        <select style={sel} value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Rewards tier">
+          <option value="">All tiers</option>
+          {["Silver", "Gold", "Platinum"].map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select style={sel} value={minOrders} onChange={(e) => setMinOrders(e.target.value)} aria-label="Minimum orders">
+          <option value="">Any orders</option>
+          <option value="1">Has ordered</option>
+          <option value="2">Repeat (2+)</option>
+          <option value="5">Loyal (5+)</option>
+        </select>
+        <select style={sel} value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort customers">
+          {Object.entries(CUST_SORTS).map(([k, s]) => <option key={k} value={k}>Sort: {s.label}</option>)}
+        </select>
+        <a className="btn btn-outline" style={{ padding: "0.45rem 1rem" }} href={adminApi.exportUrl("customers")}>
+          ⤓ Export CSV
+        </a>
       </div>
+
       {shown.length === 0 ? (
-        <p className="muted">No customers match that search.</p>
+        <p className="muted">No customers match those filters.</p>
       ) : (
         <table className="admin-table">
           <thead>
-            <tr><th>Customer</th><th>Type</th><th>Orders</th><th>Lifetime value</th><th>Rewards</th><th>Last order</th></tr>
+            <tr><th>Customer</th><th>Type</th><th>Tier</th><th>Orders</th><th>Lifetime value</th><th>Avg order</th><th>Last order</th></tr>
           </thead>
           <tbody>
             {shown.map((r) => (
               <tr key={r.phone} onClick={() => setSelected(r.phone)} style={{ cursor: "pointer" }}>
-                <td>{r.name || "—"}<small>{r.phone}{r.email ? ` · ${r.email}` : ""}</small></td>
+                <td>
+                  <span className="cust-cell">
+                    <span className="cust-avatar" aria-hidden>{(r.name || r.phone).trim().charAt(0).toUpperCase()}</span>
+                    <span>
+                      {r.name || "—"}
+                      <small>{r.phone}{r.email ? ` · ${r.email}` : ""}</small>
+                    </span>
+                  </span>
+                </td>
                 <td><span className="status-pill">{r.registered ? "Account" : "Guest"}</span></td>
+                <td>
+                  <span className="status-pill" style={TIER_TINT[r.tier]}>{r.tier}</span>
+                  {r.points > 0 && <small style={{ display: "block" }}>{r.points} pts</small>}
+                </td>
                 <td>{r.orders}</td>
                 <td>{formatINR(r.spend)}</td>
-                <td>{r.points > 0 ? `${r.points} · ${r.tier}` : "—"}</td>
+                <td>{r.orders > 0 ? formatINR(Math.round(r.spend / r.orders)) : "—"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>{r.lastOrderAt ? fmtDate(r.lastOrderAt) : "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      <p className="muted" style={{ fontSize: "0.78rem" }}>
+        Showing {shown.length} of {rows.length} customers · click a row for the
+        full profile — orders, gold schemes, rewards and appointments.
+      </p>
       </>
       )}
     </div>
