@@ -3598,6 +3598,45 @@ function Orders() {
 /* ---------------------------------------------------------- catalogue */
 const PURITIES = { gold: ["24K", "22K", "18K", "14K"], silver: ["925"], platinum: ["PT950"] };
 
+/* Occasion tags — they group the header mega-menu ("Popular styles") and
+   feed the /shop occasion filter. The canonical set below matches the
+   storefront labels; a piece keeps any custom tag it already carries. */
+const OCCASIONS = [
+  ["wedding", "Wedding"], ["engagement", "Engagement"], ["anniversary", "Anniversary"],
+  ["festive", "Festive"], ["daily", "Everyday"], ["office", "Office wear"],
+  ["party", "Party"], ["gifting", "Gifting"],
+];
+
+function OccasionChips({ value, onChange }) {
+  const known = OCCASIONS.map(([k]) => k);
+  const custom = value.filter((t) => !known.includes(t));
+  const flip = (k) =>
+    onChange(value.includes(k) ? value.filter((t) => t !== k) : [...value, k]);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
+      {OCCASIONS.concat(custom.map((t) => [t, t])).map(([k, label]) => {
+        const on = value.includes(k);
+        return (
+          <label
+            key={k}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "0.35rem",
+              padding: "0.32rem 0.7rem", borderRadius: 999, cursor: "pointer",
+              fontSize: "0.8rem", textTransform: "none", letterSpacing: 0,
+              border: `1px solid ${on ? "var(--maroon)" : "var(--line)"}`,
+              background: on ? "var(--maroon)" : "var(--cream)",
+              color: on ? "var(--cream)" : "inherit",
+            }}
+          >
+            <input type="checkbox" hidden checked={on} onChange={() => flip(k)} />
+            {on ? "✓ " : ""}{label}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 function AddProduct({ onCreated, onError }) {
   const [open, setOpen] = useState(false);
   const [cats, setCats] = useState([]);
@@ -3606,7 +3645,7 @@ function AddProduct({ onCreated, onError }) {
     name: "", slug: "", category: "rings", metalType: "gold", purity: "22K",
     colour: "yellow", grossWeight: "", netWeight: "", makingBasis: "perGram",
     makingValue: "", imageUrl: "", extraImages: "", sizes: "", stock: "6", description: "",
-    collection: "", gender: "women", sizeLabel: "",
+    collection: "", gender: "women", sizeLabel: "", occasion: ["daily"],
     stoneType: "", stoneCarat: "", stoneRate: "", stoneCertBody: "", stoneCertNo: "",
     hallmarkingCharge: "45", certificationCharge: "", huid: "", leadTimeDays: "",
     engravable: false, featured: false,
@@ -3677,6 +3716,7 @@ function AddProduct({ onCreated, onError }) {
         description: form.description,
         collection: form.collection || undefined,
         gender: form.gender,
+        occasion: form.occasion,
         sizeLabel: form.sizeLabel || undefined,
         stone: form.stoneType
           ? {
@@ -3786,6 +3826,18 @@ function AddProduct({ onCreated, onError }) {
           <label>Opening stock</label>
           <input inputMode="numeric" value={form.stock} onChange={set("stock")} />
         </div>
+      </div>
+      <div className="field">
+        <label>
+          Occasions{" "}
+          <span className="muted" style={{ fontWeight: 400 }}>
+            — where the piece appears in the header menu and shop filters
+          </span>
+        </label>
+        <OccasionChips
+          value={form.occasion}
+          onChange={(occ) => setForm((f) => ({ ...f, occasion: occ }))}
+        />
       </div>
       <div className="field">
         <label>
@@ -4077,6 +4129,47 @@ function ImagesEditor({ product, onSaved, onError }) {
   );
 }
 
+/* Retag an existing piece — the mega-menu and shop filters follow the
+   saved tags on the next load. */
+function OccasionsEditor({ product, onSaved, onError }) {
+  const [tags, setTags] = useState(product.occasion || []);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    onError(null);
+    try {
+      await adminApi.patchProduct(product.slug, { occasion: tags });
+      onSaved(tags);
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "grid", gap: "0.7rem", padding: "0.5rem 0.2rem" }}>
+      <OccasionChips value={tags} onChange={setTags} />
+      <div style={{ display: "flex", gap: "0.7rem", alignItems: "center" }}>
+        <button
+          className="btn btn-maroon"
+          style={{ padding: "0.45rem 1.2rem" }}
+          onClick={save}
+          disabled={busy || tags.length === 0}
+        >
+          {busy ? "Saving…" : "Save occasions"}
+        </button>
+        {tags.length === 0 && (
+          <span className="muted" style={{ fontSize: "0.78rem" }}>
+            Pick at least one — every piece needs a home in the menu.
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Catalogue() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
@@ -4085,6 +4178,7 @@ function Catalogue() {
   const [fileInfo, setFileInfo] = useState(null); // {name, rows}
   const [report, setReport] = useState(null);
   const [imagesFor, setImagesFor] = useState(null); // slug with the images editor open
+  const [occFor, setOccFor] = useState(null); // slug with the occasions editor open
 
   const refresh = useCallback(() => {
     adminApi.products().then(setItems).catch((e) => setError(e.message));
@@ -4155,7 +4249,7 @@ function Catalogue() {
       />
       <table className="admin-table">
         <thead>
-          <tr><th>Product</th><th>Category</th><th>Purity</th><th>Net wt</th><th>Making</th><th>Price today</th><th>Stock</th><th>Images</th><th>Published</th><th>Featured</th></tr>
+          <tr><th>Product</th><th>Category</th><th>Purity</th><th>Net wt</th><th>Making</th><th>Price today</th><th>Stock</th><th>Images</th><th>Occasions</th><th>Published</th><th>Featured</th></tr>
         </thead>
         <tbody>
           {items.map((p) => (
@@ -4191,6 +4285,17 @@ function Catalogue() {
                   </button>
                 </td>
                 <td>
+                  <button
+                    className="btn btn-outline"
+                    style={{ padding: "0.3rem 0.8rem" }}
+                    onClick={() => setOccFor(occFor === p.slug ? null : p.slug)}
+                    aria-expanded={occFor === p.slug}
+                    title={(p.occasion || []).join(", ") || "No tags yet"}
+                  >
+                    {occFor === p.slug ? "Close" : `${p.occasion?.length ?? 0} ✦`}
+                  </button>
+                </td>
+                <td>
                   <input
                     type="checkbox"
                     checked={p.published}
@@ -4209,12 +4314,27 @@ function Catalogue() {
               </tr>
               {imagesFor === p.slug && (
                 <tr>
-                  <td colSpan={10} style={{ background: "var(--paper)" }}>
+                  <td colSpan={11} style={{ background: "var(--paper)" }}>
                     <ImagesEditor
                       product={p}
                       onSaved={(n) => {
                         setNote(`${p.slug}: ${n} image${n > 1 ? "s" : ""} saved — live on the product page.`);
                         setImagesFor(null);
+                        refresh();
+                      }}
+                      onError={setError}
+                    />
+                  </td>
+                </tr>
+              )}
+              {occFor === p.slug && (
+                <tr>
+                  <td colSpan={11} style={{ background: "var(--paper)" }}>
+                    <OccasionsEditor
+                      product={p}
+                      onSaved={(tags) => {
+                        setNote(`${p.slug}: tagged ${tags.join(", ")} — the header menu follows on its next load.`);
+                        setOccFor(null);
                         refresh();
                       }}
                       onError={setError}
@@ -4233,7 +4353,8 @@ function Catalogue() {
         catalogue</strong>), fill or edit it in Excel / Google Sheets, then upload
         it back. Existing slugs are updated; new slugs are created as published
         pieces. Put multiple sizes in one cell separated by semicolons
-        (e.g. <code>10;12;14</code>); stock and description are optional.
+        (e.g. <code>10;12;14</code>) and occasion tags the same way
+        (e.g. <code>wedding;gifting</code>); stock and description are optional.
       </p>
       <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginBottom: "1rem" }}>
         <a className="btn btn-outline" style={{ padding: "0.5rem 1.1rem" }} href={adminApi.exportUrl("template")}>
