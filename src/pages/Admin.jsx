@@ -4968,12 +4968,133 @@ function Schemes() {
 }
 
 /* ---------------------------------------------------------- rate console */
+/* Chart palette: validated for CVD + contrast on the cream and midnight
+   surfaces (dataviz six-checks). Colors are pinned to the purity — they
+   never re-cycle when a series is filtered out. */
+const RATE_COLORS = { "24K": "#9a721a", "22K": "#b02a45", "18K": "#5b74c0", "14K": "#27754c", "925": "#5b74c0", PT950: "#27754c" };
+const RANGE_DAYS = { "7d": 7, "30d": 30, All: null };
+
+function rateSeries(history, rates, metal) {
+  return Object.keys(rates[metal] || {}).map((purity) => {
+    const rows = history.filter((h) => h.metal === metal && h.purity === purity);
+    const points = rows.map((h) => ({ t: Date.parse(h.at), v: h.to }));
+    if (rows.length) points.unshift({ t: Date.parse(rows[0].at) - 60000, v: rows[0].from });
+    points.push({ t: Date.now(), v: rates[metal][purity] });
+    return { key: purity, color: RATE_COLORS[purity] || "#b02a45", points };
+  });
+}
+
+function Sparkline({ points, color }) {
+  if (!points || points.length < 2) return null;
+  const w = 96, h = 26;
+  const ts = points.map((p) => p.t), vs = points.map((p) => p.v);
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const v0 = Math.min(...vs), v1 = Math.max(...vs);
+  const x = (t) => (t1 === t0 ? w / 2 : ((t - t0) / (t1 - t0)) * (w - 4) + 2);
+  const y = (v) => (v1 === v0 ? h / 2 : h - 3 - ((v - v0) / (v1 - v0)) * (h - 6));
+  const d = points.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const last = points[points.length - 1];
+  return (
+    <svg className="rc-spark" viewBox={`0 0 ${w} ${h}`} aria-hidden>
+      <polyline points={d} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={x(last.t)} cy={y(last.v)} r="2.6" fill={color} />
+    </svg>
+  );
+}
+
+/* Price-history line chart: crosshair + tooltip on hover, legend chips that
+   toggle purities, direct labels at the line ends, and a data-table view. */
+function RateChart({ series, formatTick }) {
+  const [hover, setHover] = useState(null); // {t, px}
+  const W = 720, H = 250, L = 70, R = 64, T = 14, B = 28;
+  const visible = series.filter((s) => s.points.length >= 2);
+  if (visible.length === 0)
+    return <p className="muted" style={{ padding: "1.4rem 0" }}>Not enough published changes in this window yet — publish a rate and the graph begins.</p>;
+
+  const ts = visible.flatMap((s) => s.points.map((p) => p.t));
+  const vs = visible.flatMap((s) => s.points.map((p) => p.v));
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const rawMin = Math.min(...vs), rawMax = Math.max(...vs);
+  const padV = Math.max((rawMax - rawMin) * 0.08, rawMax * 0.004, 1);
+  const v0 = rawMin - padV, v1 = rawMax + padV;
+  const x = (t) => L + ((t - t0) / (t1 - t0 || 1)) * (W - L - R);
+  const y = (v) => T + (1 - (v - v0) / (v1 - v0 || 1)) * (H - T - B);
+  const ticksY = [0, 1, 2, 3].map((i) => v0 + ((v1 - v0) / 3) * i);
+  const ticksX = [t0, (t0 + t1) / 2, t1];
+  const fmtDay = (t) => new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+  const onMove = (e) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const px = ((e.clientX - box.left) / box.width) * W;
+    if (px < L || px > W - R) return setHover(null);
+    setHover({ t: t0 + ((px - L) / (W - L - R)) * (t1 - t0), px });
+  };
+  const valueAt = (s, t) => {
+    let best = s.points[0];
+    for (const p of s.points) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+    return best;
+  };
+
+  return (
+    <div className="rc-chartwrap">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="rc-chart"
+        role="img"
+        aria-label="Rate history"
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
+      >
+        {ticksY.map((v) => (
+          <g key={v}>
+            <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="rc-gridline" />
+            <text x={L - 8} y={y(v) + 4} textAnchor="end" className="rc-ticktext">{formatTick(v)}</text>
+          </g>
+        ))}
+        {ticksX.map((t) => (
+          <text key={t} x={x(t)} y={H - 8} textAnchor="middle" className="rc-ticktext">{fmtDay(t)}</text>
+        ))}
+        {visible.map((s) => (
+          <g key={s.key}>
+            <polyline
+              points={s.points.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")}
+              fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
+            />
+            <circle cx={x(s.points.at(-1).t)} cy={y(s.points.at(-1).v)} r="3.4" fill={s.color} />
+            <text x={W - R + 10} y={y(s.points.at(-1).v) + 4} className="rc-endlabel">{s.key}</text>
+          </g>
+        ))}
+        {hover && <line x1={x(hover.t)} x2={x(hover.t)} y1={T} y2={H - B} className="rc-crosshair" />}
+      </svg>
+      {hover && (
+        <div className="rc-tooltip" style={{ left: `${Math.min(86, Math.max(6, (hover.px / W) * 100))}%` }}>
+          <strong>{fmtDay(hover.t)}</strong>
+          {visible.map((s) => {
+            const p = valueAt(s, hover.t);
+            return (
+              <span key={s.key}>
+                <i style={{ background: s.color }} /> {s.key} {formatINR(p.v)}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Rates() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
   const [form, setForm] = useState({ metal: "gold", purity: "22K", value: "", maker: "", note: "" });
   const [checker, setChecker] = useState("");
+  const [metal, setMetal] = useState("gold");
+  const [range, setRange] = useState("30d");
+  const [showTable, setShowTable] = useState(false);
+  const [hidden, setHidden] = useState([]); // purities toggled off the chart
+  const [aMetal, setAMetal] = useState("");
+  const [aWho, setAWho] = useState("");
 
   const refresh = useCallback(() => {
     adminApi.rates().then(setData).catch((e) => setError(e.message));
@@ -5023,35 +5144,185 @@ function Rates() {
   if (!data) return <div className="skeleton" style={{ height: 300 }} />;
 
   const pending = data.proposals.filter((p) => p.status === "pending");
+  const history = data.history || [];
+  const fmtDay = (iso) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const lastChange = (m, p) => {
+    for (let i = history.length - 1; i >= 0; i--)
+      if (history[i].metal === m && history[i].purity === p) return history[i];
+    return null;
+  };
+
+  // headline cards — pinned selection, sparkline over the recent history
+  const CARD_PAIRS = [["gold", "24K"], ["gold", "22K"], ["gold", "18K"], ["silver", "925"], ["platinum", "PT950"]];
+  const sparkFor = (m, p) => {
+    const pts = history.filter((h) => h.metal === m && h.purity === p).slice(-12).map((h) => ({ t: Date.parse(h.at), v: h.to }));
+    pts.push({ t: Date.now(), v: data.rates[m][p] });
+    return pts;
+  };
+
+  // chart series for the picked metal + window; colors stay pinned per purity
+  const cutoff = RANGE_DAYS[range] ? Date.now() - RANGE_DAYS[range] * 864e5 : 0;
+  const allSeries = rateSeries(history, data.rates, metal).map((s) => ({
+    ...s,
+    points: s.points.filter((pt) => pt.t >= cutoff),
+  }));
+  const series = allSeries.filter((s) => !hidden.includes(s.key));
+  const chartHistory = history.filter((h) => h.metal === metal && Date.parse(h.at) >= cutoff);
+  const compactTick = (v) => (v >= 1000 ? `₹${(v / 1000).toFixed(1)}k` : `₹${Math.round(v)}`);
+
+  const shownAudit = data.audit.filter((a) => {
+    if (aMetal && a.metal !== aMetal) return false;
+    if (aWho) {
+      const needle = aWho.trim().toLowerCase();
+      if (!`${a.maker} ${a.checker}`.toLowerCase().includes(needle)) return false;
+    }
+    return true;
+  });
+
+  const chip = (on) => ({
+    padding: "0.3rem 0.85rem", borderRadius: 999, cursor: "pointer", fontSize: "0.76rem",
+    letterSpacing: "0.04em", border: `1px solid ${on ? "var(--maroon)" : "var(--line)"}`,
+    background: on ? "var(--maroon)" : "transparent", color: on ? "var(--cream)" : "inherit",
+  });
 
   return (
-    <div className="rates-layout">
-      <div>
-        <h3 className="admin-subhead">Live rates (₹/g)</h3>
-        <table className="admin-table">
-          <tbody>
-            {Object.entries(data.rates).flatMap(([metal, table]) =>
-              Object.entries(table).map(([purity, v]) => (
-                <tr key={metal + purity}>
-                  <td style={{ textTransform: "capitalize" }}>{metal} {purity}</td>
-                  <td>{formatINR(v)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.6rem" }}>
-          {data.updatedAt ? `Last published ${fmtDate(data.updatedAt)}` : "No rate change published yet"} ·
-          guard blocks moves beyond ±{data.guardPct}%
-        </p>
+    <div>
+      {error && <p className="form-error">{error}</p>}
+      {note && <p className="admin-note">{note}</p>}
 
-        <h3 className="admin-subhead">{instant ? "Update a rate" : "Propose a change (maker)"}</h3>
-        {instant && (
-          <p className="muted" style={{ fontSize: "0.8rem", marginTop: "-0.4rem", marginBottom: "0.8rem" }}>
-            Single-operator mode: changes publish instantly. Re-enable second-person
-            approval in Settings → “Rate maker-checker”.
+      <div className="rc-cards">
+        {CARD_PAIRS.map(([m, p]) => {
+          const v = data.rates[m]?.[p];
+          if (v === undefined) return null;
+          const chg = lastChange(m, p);
+          const pct = chg ? ((chg.to - chg.from) / chg.from) * 100 : null;
+          return (
+            <div className="rc-stat" key={m + p}>
+              <label>{m} {p}</label>
+              <span className="rc-value">{formatINR(v)}</span>
+              <span className="rc-under">
+                {pct === null ? (
+                  <small className="muted">no change yet</small>
+                ) : (
+                  <small className={`rc-delta ${pct >= 0 ? "up" : "down"}`}>
+                    {pct >= 0 ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}% · {fmtDay(chg.at)}
+                  </small>
+                )}
+                <Sparkline points={sparkFor(m, p)} color={RATE_COLORS[p]} />
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="muted" style={{ fontSize: "0.78rem", margin: "0.5rem 0 1.2rem" }}>
+        {data.updatedAt ? `Last published ${fmtDate(data.updatedAt)}` : "No rate change published yet"} · the
+        guard blocks moves beyond ±{data.guardPct}% · every publish reprices the whole catalogue instantly.
+      </p>
+
+      <div className="rc-grid">
+        <section className="rc-card">
+          <div className="rc-cardhead">
+            <h3>Price history (₹/g)</h3>
+            <div className="rc-chips">
+              {Object.keys(data.rates).map((m) => (
+                <button key={m} style={{ ...chip(metal === m), textTransform: "capitalize" }} onClick={() => { setMetal(m); setHidden([]); }}>
+                  {m}
+                </button>
+              ))}
+              <span className="rc-sep" aria-hidden>·</span>
+              {Object.keys(RANGE_DAYS).map((r) => (
+                <button key={r} style={chip(range === r)} onClick={() => setRange(r)}>{r}</button>
+              ))}
+              <span className="rc-sep" aria-hidden>·</span>
+              <button style={chip(showTable)} onClick={() => setShowTable((v) => !v)} aria-pressed={showTable}>
+                ⊞ Data
+              </button>
+            </div>
+          </div>
+          {allSeries.length > 1 && !showTable && (
+            <div className="rc-legend">
+              {allSeries.map((s) => {
+                const off = hidden.includes(s.key);
+                return (
+                  <button
+                    key={s.key}
+                    className={`rc-legend-chip ${off ? "off" : ""}`}
+                    onClick={() => setHidden((prev) => (off ? prev.filter((k) => k !== s.key) : [...prev, s.key]))}
+                    aria-pressed={!off}
+                  >
+                    <i style={{ background: s.color }} /> {s.key}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {showTable ? (
+            chartHistory.length === 0 ? (
+              <p className="muted" style={{ padding: "1rem 0" }}>No published changes in this window.</p>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr><th>When</th><th>Purity</th><th>From → To</th><th>Move</th></tr>
+                </thead>
+                <tbody>
+                  {[...chartHistory].reverse().map((h, i) => (
+                    <tr key={i}>
+                      <td>{fmtDate(h.at)}</td>
+                      <td>{h.purity}</td>
+                      <td>{formatINR(h.from)} → {formatINR(h.to)}</td>
+                      <td>{h.to >= h.from ? "▲" : "▼"} {(Math.abs((h.to - h.from) / h.from) * 100).toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : (
+            <RateChart series={series} formatTick={compactTick} />
+          )}
+        </section>
+
+        <section className="rc-card">
+          <div className="rc-cardhead">
+            <h3>Publish workflow</h3>
+            <span className="status-pill" style={instant ? { background: "rgba(176,141,87,.2)", color: "#6d5226" } : { background: "rgba(63,108,76,.16)" }}>
+              {instant ? "Instant publish" : "Maker-checker"}
+            </span>
+          </div>
+          <p className="muted" style={{ fontSize: "0.78rem", marginTop: 0 }}>
+            {instant
+              ? "Single-operator mode — changes go live immediately, guard-checked and audited. Re-enable dual control in Settings → “Rate maker-checker”."
+              : "Dual control — a maker proposes, a different person approves before anything goes live."}
           </p>
-        )}
+
+          {(!instant || pending.length > 0) && (
+            <div className="field" style={{ marginBottom: "0.9rem" }}>
+              <label>Checker name</label>
+              <input placeholder="Must differ from maker" value={checker} onChange={(e) => setChecker(e.target.value)} />
+            </div>
+          )}
+          {pending.length === 0 ? (
+            <p className="muted" style={{ fontSize: "0.82rem" }}>Nothing waiting for approval.</p>
+          ) : (
+            pending.map((p) => (
+              <div key={p.id} className="proposal-card">
+                <div>
+                  <strong style={{ textTransform: "capitalize" }}>
+                    {p.metal} {p.purity === "ALL" ? "all purities (24K)" : p.purity}: {formatINR(p.from)} → {formatINR(p.to)}
+                  </strong>
+                  <small>
+                    by {p.maker} · {fmtDate(p.createdAt)}
+                    {p.note ? ` · “${p.note}”` : ""}
+                  </small>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button className="btn btn-green" onClick={() => resolve(p.id, "approve")}>Approve</button>
+                  <button className="btn btn-outline" onClick={() => resolve(p.id, "reject")}>Reject</button>
+                </div>
+              </div>
+            ))
+          )}
+
+          <h4 className="rc-formhead">{instant ? "Quick rate update" : "Propose a change (maker)"}</h4>
         <form className="checkout-form" onSubmit={propose}>
           <div className="form-row">
             <div className="field">
@@ -5108,66 +5379,64 @@ function Rates() {
           </div>
           <button className="btn btn-maroon">{instant ? "Publish rate" : "Submit proposal"}</button>
         </form>
+        </section>
       </div>
 
-      <div>
-        {error && <p className="form-error">{error}</p>}
-        {note && <p className="admin-note">{note}</p>}
-
-        <h3 className="admin-subhead">Pending approval (checker)</h3>
-        {(!instant || pending.length > 0) && (
-          <div className="field" style={{ marginBottom: "1rem" }}>
-            <label>Checker name</label>
+      <section className="rc-card" style={{ marginTop: "1rem" }}>
+        <div className="rc-cardhead">
+          <h3>Audit trail</h3>
+          <div className="rc-chips">
+            <select
+              value={aMetal}
+              onChange={(e) => setAMetal(e.target.value)}
+              aria-label="Filter audit by metal"
+              style={{ padding: "0.35rem 0.6rem", borderRadius: 9, border: "1px solid var(--line)", background: "var(--cream)", fontSize: "0.8rem" }}
+            >
+              <option value="">All metals</option>
+              {Object.keys(data.rates).map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
             <input
-              placeholder="Must differ from maker"
-              value={checker}
-              onChange={(e) => setChecker(e.target.value)}
+              placeholder="Search maker / checker…"
+              value={aWho}
+              onChange={(e) => setAWho(e.target.value)}
+              aria-label="Search audit people"
+              style={{ padding: "0.35rem 0.6rem", borderRadius: 9, border: "1px solid var(--line)", background: "var(--cream)", fontSize: "0.8rem" }}
             />
           </div>
-        )}
-        {pending.length === 0 ? (
-          <p className="muted">Nothing waiting.</p>
-        ) : (
-          pending.map((p) => (
-            <div key={p.id} className="proposal-card">
-              <div>
-                <strong style={{ textTransform: "capitalize" }}>
-                  {p.metal} {p.purity === "ALL" ? "all purities (24K)" : p.purity}: {formatINR(p.from)} → {formatINR(p.to)}
-                </strong>
-                <small>
-                  by {p.maker} · {fmtDate(p.createdAt)}
-                  {p.note ? ` · “${p.note}”` : ""}
-                </small>
-              </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button className="btn btn-green" onClick={() => resolve(p.id, "approve")}>Approve</button>
-                <button className="btn btn-outline" onClick={() => resolve(p.id, "reject")}>Reject</button>
-              </div>
-            </div>
-          ))
-        )}
-
-        <h3 className="admin-subhead">Audit trail</h3>
-        {data.audit.length === 0 ? (
-          <p className="muted">No published changes yet.</p>
+        </div>
+        {shownAudit.length === 0 ? (
+          <p className="muted">No published changes{data.audit.length ? " match those filters" : " yet"}.</p>
         ) : (
           <table className="admin-table">
             <thead>
-              <tr><th>When</th><th>Rate</th><th>From → To</th><th>Maker / Checker</th></tr>
+              <tr><th>When</th><th>Rate</th><th>From → To</th><th>Move</th><th>Maker / Checker</th></tr>
             </thead>
             <tbody>
-              {data.audit.map((a, i) => (
-                <tr key={i}>
-                  <td>{fmtDate(a.at)}</td>
-                  <td style={{ textTransform: "capitalize" }}>{a.metal} {a.purity}</td>
-                  <td>{formatINR(a.from)} → {formatINR(a.to)}</td>
-                  <td>{a.maker} / {a.checker}</td>
-                </tr>
-              ))}
+              {shownAudit.map((a, i) => {
+                const pct = ((a.to - a.from) / a.from) * 100;
+                return (
+                  <tr key={i}>
+                    <td style={{ whiteSpace: "nowrap" }}>{fmtDate(a.at)}</td>
+                    <td style={{ textTransform: "capitalize" }}>
+                      <i className="rc-dot" style={{ background: RATE_COLORS[a.purity] || "var(--ink-faint)" }} /> {a.metal} {a.purity}
+                    </td>
+                    <td>{formatINR(a.from)} → {formatINR(a.to)}</td>
+                    <td>
+                      <small className={`rc-delta ${pct >= 0 ? "up" : "down"}`}>
+                        {pct >= 0 ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}%
+                      </small>
+                    </td>
+                    <td>{a.maker} / {a.checker}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
-      </div>
+        <p className="muted" style={{ fontSize: "0.76rem", marginBottom: 0 }}>
+          Showing {shownAudit.length} of the last {data.audit.length} published changes — the full history stays on record.
+        </p>
+      </section>
     </div>
   );
 }
