@@ -3480,10 +3480,199 @@ function Analytics({ a, loyalty }) {
 }
 
 /* ---------------------------------------------------------- orders */
+/* Order lifecycle console. The list is searchable and filterable; a row
+   opens the side drawer with the full order — status controls, customer,
+   delivery, items, totals, documents and the timeline. Transitions go
+   through PATCH /status, which also notifies the customer by SMS,
+   restores stock on cancellation and raises the invoice when due. */
+const STATUS_TINT = {
+  Placed: { background: "rgba(176,141,87,.16)", color: "#7a5c2e" },
+  "Verification Pending": { background: "rgba(140,22,38,.12)", color: "var(--maroon-bright)" },
+  Confirmed: { background: "rgba(63,108,76,.14)", color: "var(--green, #3f6c4c)" },
+  "Under Quality Check": { background: "rgba(176,141,87,.16)", color: "#7a5c2e" },
+  Packed: { background: "rgba(176,141,87,.2)", color: "#6d5226" },
+  Shipped: { background: "rgba(70,90,140,.14)", color: "#3d517e" },
+  "Out for Delivery": { background: "rgba(70,90,140,.2)", color: "#33466f" },
+  Delivered: { background: "rgba(63,108,76,.2)", color: "#2f5a3c" },
+  Cancelled: { background: "rgba(140,22,38,.14)", color: "var(--maroon-bright)" },
+  Returned: { background: "rgba(120,120,120,.16)", color: "inherit" },
+  Refunded: { background: "rgba(120,120,120,.16)", color: "inherit" },
+};
+
+function StatusPill({ status }) {
+  return (
+    <span className="status-pill" style={STATUS_TINT[status]}>
+      {status}
+    </span>
+  );
+}
+
+const invoiceReady = (o) =>
+  o.invoice || o.payment.status === "paid" || !["Placed", "Verification Pending", "Cancelled"].includes(o.status);
+
+function OrderDrawer({ order: o, onClose, onMove, busy }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const forward = (o.nextStatuses || []).filter((s) => !["Cancelled", "Returned", "Refunded"].includes(s));
+  const special = (o.nextStatuses || []).filter((s) => ["Cancelled", "Returned", "Refunded"].includes(s));
+  const pickup = o.fulfilment?.method === "pickup";
+
+  return (
+    <>
+      <div className="od-overlay" onClick={onClose} />
+      <aside className="od-drawer" role="dialog" aria-label={`Order details ${o.orderId}`}>
+        <header className="od-head">
+          <div>
+            <h3>Order details</h3>
+            <code>{o.orderId}</code>
+          </div>
+          <button className="icon-btn" aria-label="Close order details" onClick={onClose}>✕</button>
+        </header>
+
+        <div className="od-chips">
+          <StatusPill status={o.status} />
+          <span className="status-pill" style={{ background: o.payment.status === "paid" ? "rgba(63,108,76,.14)" : "rgba(176,141,87,.16)" }}>
+            {o.payment.status}
+          </span>
+          <span className="status-pill">{o.payment.mode.toUpperCase()}</span>
+          <span className="od-placed muted">Placed {fmtDate(o.placedAt)}</span>
+        </div>
+
+        {(forward.length > 0 || special.length > 0) && (
+          <section className="od-card">
+            <h4>Move to next status</h4>
+            <div className="od-actions">
+              {forward.map((s, i) => (
+                <button
+                  key={s}
+                  className={`btn ${i === 0 ? "btn-maroon" : "btn-outline"}`}
+                  style={{ padding: "0.5rem 1.1rem" }}
+                  disabled={busy}
+                  onClick={() => onMove(o.orderId, s)}
+                >
+                  {o.status === "Verification Pending" && s === "Confirmed" ? "Verified — Confirm" : `Mark ${s}`}
+                </button>
+              ))}
+              {special.map((s) => (
+                <button
+                  key={s}
+                  className="btn btn-outline od-danger"
+                  style={{ padding: "0.5rem 1.1rem" }}
+                  disabled={busy}
+                  onClick={() => {
+                    if (s !== "Cancelled" || window.confirm(`Cancel ${o.orderId}? Stock returns to the shelf and the customer is notified.`))
+                      onMove(o.orderId, s);
+                  }}
+                >
+                  {s === "Cancelled" ? "Cancel order" : `Mark ${s}`}
+                </button>
+              ))}
+            </div>
+            <p className="muted od-fine">
+              Cancelling restores stock for every line item. The customer is
+              notified by SMS on every transition.
+            </p>
+          </section>
+        )}
+
+        <section className="od-card">
+          <h4>Customer</h4>
+          <strong>{o.customer.name}</strong>
+          {o.customer.email && <div className="muted">{o.customer.email}</div>}
+          <div className="muted">{o.customer.phone}</div>
+        </section>
+
+        <section className="od-card">
+          <h4>{pickup ? "Fulfilment" : "Delivery address"}</h4>
+          {pickup ? (
+            <div>Store pickup — {o.fulfilment.store?.name}</div>
+          ) : (
+            <div>
+              <strong>{o.customer.name} · {o.customer.phone}</strong>
+              <div className="muted">
+                {o.customer.address}
+                {o.customer.pincode ? ` — ${o.customer.pincode}` : ""}
+              </div>
+            </div>
+          )}
+          {o.gift && (
+            <p className="muted od-fine">
+              Gift-wrapped{o.gift.hideInvoiceValue ? " · packing slip hides values" : ""}
+              {o.gift.message ? ` · “${o.gift.message}”` : ""}
+            </p>
+          )}
+        </section>
+
+        <section className="od-card">
+          <h4>Items ({o.lines.reduce((s, l) => s + l.qty, 0)})</h4>
+          {o.lines.map((l) => (
+            <div className="od-item" key={l.slug + (l.size || "")}>
+              <img src={l.image} alt="" loading="lazy" />
+              <div>
+                <a className="link-underline" href={`/product/${l.slug}`} target="_blank" rel="noreferrer">{l.name}</a>
+                <small className="muted">
+                  {l.qty} × {formatINR(l.unitPrice)}
+                  {l.size ? ` · size ${l.size}` : ""}
+                  {l.engraving ? ` · engraved “${l.engraving}”` : ""}
+                </small>
+              </div>
+              <strong>{formatINR(l.lineTotal)}</strong>
+            </div>
+          ))}
+        </section>
+
+        <section className="od-card">
+          <h4>Totals</h4>
+          <dl className="od-totals">
+            <dt>Subtotal</dt><dd>{formatINR(o.total)}</dd>
+            <dt>Discount{o.coupon ? ` (${o.coupon})` : ""}</dt><dd>{o.discount ? `− ${formatINR(o.discount)}` : "₹0"}</dd>
+            {o.redeemed && (<><dt>Points redeemed</dt><dd>− {formatINR(o.redeemed.value)}</dd></>)}
+            <dt className="od-grand">Total</dt><dd className="od-grand">{formatINR(o.payable ?? o.total)}</dd>
+          </dl>
+          <p className="muted od-fine">GST included — the break-up is on the tax invoice.</p>
+          <div className="od-actions">
+            {invoiceReady(o) && (
+              <a className="btn btn-outline" style={{ padding: "0.45rem 1rem" }} href={`/invoice/${o.orderId}?phone=${encodeURIComponent(o.customer.phone)}`} target="_blank" rel="noreferrer">
+                {o.invoice ? o.invoice.number : "Tax invoice"}
+              </a>
+            )}
+            <a className="btn btn-outline" style={{ padding: "0.45rem 1rem" }} href={`/packing-slip/${o.orderId}?phone=${encodeURIComponent(o.customer.phone)}`} target="_blank" rel="noreferrer">
+              Packing slip{o.gift?.hideInvoiceValue ? " (no values)" : ""}
+            </a>
+          </div>
+        </section>
+
+        <section className="od-card">
+          <h4>Timeline</h4>
+          <ol className="od-timeline">
+            {[...o.statusTimeline].reverse().map((t, i) => (
+              <li key={i}>
+                <strong>{t.status}</strong>
+                <span className="muted">
+                  {fmtDate(t.at)}
+                  {t.by ? ` · by ${t.by}` : ""}
+                  {t.note ? ` · ${t.note}` : ""}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      </aside>
+    </>
+  );
+}
+
 function Orders() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
+  const [open, setOpen] = useState(null); // orderId shown in the drawer
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({ q: "", cust: "", status: "", pay: "", from: "", to: "" });
 
   const refresh = useCallback(() => {
     adminApi.orders().then(setData).catch((e) => setError(e.message));
@@ -3492,20 +3681,43 @@ function Orders() {
   useEffect(refresh, [refresh]);
 
   const move = async (orderId, status) => {
-    if (!status) return;
     setError(null);
     setNote(null);
+    setBusy(true);
     try {
       await adminApi.setOrderStatus(orderId, status);
-      setNote(`${orderId} → ${status}`);
+      setNote(`${orderId} → ${status} — the customer has been notified.`);
       refresh();
     } catch (e) {
       setError(e.message);
+    } finally {
+      setBusy(false);
     }
   };
 
   if (error && !data) return <p className="form-error">{error}</p>;
   if (!data) return <div className="skeleton" style={{ height: 300 }} />;
+
+  const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+  const day = (iso) => iso.slice(0, 10);
+  const filtered = data.orders.filter((o) => {
+    if (f.q && !o.orderId.toLowerCase().includes(f.q.trim().toLowerCase())) return false;
+    if (f.cust) {
+      const needle = f.cust.trim().toLowerCase();
+      const hay = `${o.customer.name} ${o.customer.phone} ${o.customer.email || ""}`.toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    if (f.status && o.status !== f.status) return false;
+    if (f.pay && o.payment.status !== f.pay) return false;
+    if (f.from && day(o.placedAt) < f.from) return false;
+    if (f.to && day(o.placedAt) > f.to) return false;
+    return true;
+  });
+  const counts = {};
+  for (const o of data.orders) counts[o.status] = (counts[o.status] || 0) + 1;
+  const payStates = [...new Set(data.orders.map((o) => o.payment.status))];
+  const current = open && data.orders.find((o) => o.orderId === open);
+  const lbl = { fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", display: "grid", gap: "0.25rem" };
 
   return (
     <>
@@ -3514,83 +3726,98 @@ function Orders() {
       {data.orders.length === 0 ? (
         <p className="muted">No orders yet — place one from the storefront.</p>
       ) : (
-        <table className="admin-table">
-          <thead>
-            <tr><th>Order</th><th>Customer</th><th>Items</th><th>Payment</th><th>Total</th><th>Status</th><th>Move to</th></tr>
-          </thead>
-          <tbody>
-            {data.orders.map((o) => (
-              <tr key={o.orderId}>
-                <td>
-                  {o.orderId}
-                  <small>{fmtDate(o.placedAt)}</small>
-                  {(o.invoice || o.payment.status === "paid" || !["Placed", "Verification Pending", "Cancelled"].includes(o.status)) && (
-                    <small>
-                      <a
-                        className="link-underline"
-                        href={`/invoice/${o.orderId}?phone=${encodeURIComponent(o.customer.phone)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {o.invoice ? o.invoice.number : "Tax invoice"}
-                      </a>
-                    </small>
-                  )}
-                  <small>
-                    <a
-                      className="link-underline"
-                      href={`/packing-slip/${o.orderId}?phone=${encodeURIComponent(o.customer.phone)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Packing slip{o.gift?.hideInvoiceValue ? " (no values)" : ""}
-                    </a>
-                  </small>
-                </td>
-                <td>
-                  {o.customer.name}
-                  <small>{o.customer.phone}</small>
-                </td>
-                <td>
-                  {o.lines.map((l) => (
-                    <div key={l.slug + (l.size || "")}>
-                      {l.name}
-                      {l.size ? ` (${l.size})` : ""} × {l.qty}
-                    </div>
-                  ))}
-                </td>
-                <td>
-                  {o.payment.mode.toUpperCase()}
-                  <small>{o.payment.status}</small>
-                </td>
-                <td>{formatINR(o.total)}</td>
-                <td>
-                  <span
-                    className="status-pill"
-                    style={o.status === "Verification Pending" ? { background: "rgba(140,22,38,.12)", color: "var(--maroon-bright)" } : undefined}
-                  >
-                    {o.status}
-                  </span>
-                </td>
-                <td>
-                  {(o.nextStatuses || []).length > 0 ? (
-                    <select defaultValue="" onChange={(e) => move(o.orderId, e.target.value)}>
-                      <option value="" disabled>Choose…</option>
-                      {o.nextStatuses.map((s) => (
-                        <option key={s} value={s}>
-                          {o.status === "Verification Pending" && s === "Confirmed" ? "Verified — Confirm" : s}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
-              </tr>
+        <>
+          <div className="od-filterbar">
+            <label style={lbl}>
+              Order ID contains
+              <input value={f.q} onChange={set("q")} placeholder="e.g. DPJ2608" />
+            </label>
+            <label style={lbl}>
+              Customer contains
+              <input value={f.cust} onChange={set("cust")} placeholder="name, phone or email" />
+            </label>
+            <label style={lbl}>
+              Status
+              <select value={f.status} onChange={set("status")}>
+                <option value="">All</option>
+                {[...new Set(["Verification Pending", ...data.flow, ...data.special, ...data.orders.map((o) => o.status)])].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            <label style={lbl}>
+              Payment
+              <select value={f.pay} onChange={set("pay")}>
+                <option value="">All</option>
+                {payStates.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <label style={lbl}>
+              From
+              <input type="date" value={f.from} onChange={set("from")} />
+            </label>
+            <label style={lbl}>
+              To
+              <input type="date" value={f.to} onChange={set("to")} />
+            </label>
+            {(f.q || f.cust || f.status || f.pay || f.from || f.to) && (
+              <button className="btn btn-outline" style={{ padding: "0.45rem 1rem", alignSelf: "end" }} onClick={() => setF({ q: "", cust: "", status: "", pay: "", from: "", to: "" })}>
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div className="od-counts">
+            {Object.entries(counts).map(([s, n]) => (
+              <button
+                key={s}
+                className="status-pill"
+                style={{ ...STATUS_TINT[s], border: "none", cursor: "pointer", opacity: f.status && f.status !== s ? 0.45 : 1 }}
+                onClick={() => setF((prev) => ({ ...prev, status: prev.status === s ? "" : s }))}
+                title={`Show only ${s}`}
+              >
+                {s} · {n}
+              </button>
             ))}
-          </tbody>
-        </table>
+          </div>
+
+          <table className="admin-table od-table">
+            <thead>
+              <tr><th>Order</th><th>Customer</th><th>Items</th><th>Payment</th><th>Total</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((o) => (
+                <tr key={o.orderId} className="od-row" onClick={() => setOpen(o.orderId)} tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && setOpen(o.orderId)}>
+                  <td>
+                    {o.orderId}
+                    <small>{fmtDate(o.placedAt)}</small>
+                  </td>
+                  <td>
+                    {o.customer.name}
+                    <small>{o.customer.phone}</small>
+                  </td>
+                  <td>{o.lines.reduce((s, l) => s + l.qty, 0)} item{o.lines.reduce((s, l) => s + l.qty, 0) === 1 ? "" : "s"}</td>
+                  <td>
+                    {o.payment.mode.toUpperCase()}
+                    <small>{o.payment.status}</small>
+                  </td>
+                  <td>{formatINR(o.payable ?? o.total)}</td>
+                  <td><StatusPill status={o.status} /></td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: "1.4rem" }}>No orders match those filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+          <p className="muted" style={{ fontSize: "0.78rem" }}>
+            {filtered.length} of {data.orders.length} orders · click a row for
+            full details, documents and status controls.
+          </p>
+        </>
       )}
+      {current && <OrderDrawer order={current} onClose={() => setOpen(null)} onMove={move} busy={busy} />}
     </>
   );
 }
