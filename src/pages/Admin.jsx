@@ -5237,6 +5237,13 @@ function Rates() {
               <button style={chip(showTable)} onClick={() => setShowTable((v) => !v)} aria-pressed={showTable}>
                 ⊞ Data
               </button>
+              <a
+                style={{ ...chip(false), textDecoration: "none" }}
+                href={`${adminApi.exportUrl("rates")}&metal=${metal}${RANGE_DAYS[range] ? `&days=${RANGE_DAYS[range]}` : ""}`}
+                title="Download this window as a CSV report"
+              >
+                ⤓ Report
+              </a>
             </div>
           </div>
           {allSeries.length > 1 && !showTable && (
