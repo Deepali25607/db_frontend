@@ -5095,6 +5095,8 @@ function Rates() {
   const [hidden, setHidden] = useState([]); // purities toggled off the chart
   const [aMetal, setAMetal] = useState("");
   const [aWho, setAWho] = useState("");
+  const [histOpen, setHistOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const refresh = useCallback(() => {
     adminApi.rates().then(setData).catch((e) => setError(e.message));
@@ -5223,30 +5225,41 @@ function Rates() {
         <section className="rc-card">
           <div className="rc-cardhead">
             <h3>Price history (₹/g)</h3>
-            <div className="rc-chips">
-              {Object.keys(data.rates).map((m) => (
-                <button key={m} style={{ ...chip(metal === m), textTransform: "capitalize" }} onClick={() => { setMetal(m); setHidden([]); }}>
-                  {m}
+            {!histOpen && (
+              <small className="muted">
+                {history.length} change{history.length === 1 ? "" : "s"} on record
+                {data.updatedAt ? ` · last ${fmtDay(data.updatedAt)}` : ""}
+              </small>
+            )}
+            {histOpen && (
+              <div className="rc-chips">
+                {Object.keys(data.rates).map((m) => (
+                  <button key={m} style={{ ...chip(metal === m), textTransform: "capitalize" }} onClick={() => { setMetal(m); setHidden([]); }}>
+                    {m}
+                  </button>
+                ))}
+                <span className="rc-sep" aria-hidden>·</span>
+                {Object.keys(RANGE_DAYS).map((r) => (
+                  <button key={r} style={chip(range === r)} onClick={() => setRange(r)}>{r}</button>
+                ))}
+                <span className="rc-sep" aria-hidden>·</span>
+                <button style={chip(showTable)} onClick={() => setShowTable((v) => !v)} aria-pressed={showTable}>
+                  ⊞ Data
                 </button>
-              ))}
-              <span className="rc-sep" aria-hidden>·</span>
-              {Object.keys(RANGE_DAYS).map((r) => (
-                <button key={r} style={chip(range === r)} onClick={() => setRange(r)}>{r}</button>
-              ))}
-              <span className="rc-sep" aria-hidden>·</span>
-              <button style={chip(showTable)} onClick={() => setShowTable((v) => !v)} aria-pressed={showTable}>
-                ⊞ Data
-              </button>
-              <a
-                style={{ ...chip(false), textDecoration: "none" }}
-                href={`${adminApi.exportUrl("rates")}&metal=${metal}${RANGE_DAYS[range] ? `&days=${RANGE_DAYS[range]}` : ""}`}
-                title="Download this window as a CSV report"
-              >
-                ⤓ Report
-              </a>
-            </div>
+                <a
+                  style={{ ...chip(false), textDecoration: "none" }}
+                  href={`${adminApi.exportUrl("rates")}&metal=${metal}${RANGE_DAYS[range] ? `&days=${RANGE_DAYS[range]}` : ""}`}
+                  title="Download this window as a CSV report"
+                >
+                  ⤓ Report
+                </a>
+              </div>
+            )}
+            <button className="rc-expand" onClick={() => setHistOpen((v) => !v)} aria-expanded={histOpen}>
+              {histOpen ? "▾ Collapse" : "▸ Expand"}
+            </button>
           </div>
-          {allSeries.length > 1 && !showTable && (
+          {histOpen && allSeries.length > 1 && !showTable && (
             <div className="rc-legend">
               {allSeries.map((s) => {
                 const off = hidden.includes(s.key);
@@ -5263,7 +5276,7 @@ function Rates() {
               })}
             </div>
           )}
-          {showTable ? (
+          {histOpen && (showTable ? (
             chartHistory.length === 0 ? (
               <p className="muted" style={{ padding: "1rem 0" }}>No published changes in this window.</p>
             ) : (
@@ -5285,7 +5298,7 @@ function Rates() {
             )
           ) : (
             <RateChart series={series} formatTick={compactTick} />
-          )}
+          ))}
         </section>
 
         <section className="rc-card">
@@ -5392,26 +5405,36 @@ function Rates() {
       <section className="rc-card" style={{ marginTop: "1rem" }}>
         <div className="rc-cardhead">
           <h3>Audit trail</h3>
-          <div className="rc-chips">
-            <select
-              value={aMetal}
-              onChange={(e) => setAMetal(e.target.value)}
-              aria-label="Filter audit by metal"
-              style={{ padding: "0.35rem 0.6rem", borderRadius: 9, border: "1px solid var(--line)", background: "var(--cream)", fontSize: "0.8rem" }}
-            >
-              <option value="">All metals</option>
-              {Object.keys(data.rates).map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <input
-              placeholder="Search maker / checker…"
-              value={aWho}
-              onChange={(e) => setAWho(e.target.value)}
-              aria-label="Search audit people"
-              style={{ padding: "0.35rem 0.6rem", borderRadius: 9, border: "1px solid var(--line)", background: "var(--cream)", fontSize: "0.8rem" }}
-            />
-          </div>
+          {!auditOpen && (
+            <small className="muted">
+              last {data.audit.length} published change{data.audit.length === 1 ? "" : "s"} · maker &amp; checker on every row
+            </small>
+          )}
+          {auditOpen && (
+            <div className="rc-chips">
+              <select
+                value={aMetal}
+                onChange={(e) => setAMetal(e.target.value)}
+                aria-label="Filter audit by metal"
+                style={{ padding: "0.35rem 0.6rem", borderRadius: 9, border: "1px solid var(--line)", background: "var(--cream)", fontSize: "0.8rem" }}
+              >
+                <option value="">All metals</option>
+                {Object.keys(data.rates).map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <input
+                placeholder="Search maker / checker…"
+                value={aWho}
+                onChange={(e) => setAWho(e.target.value)}
+                aria-label="Search audit people"
+                style={{ padding: "0.35rem 0.6rem", borderRadius: 9, border: "1px solid var(--line)", background: "var(--cream)", fontSize: "0.8rem" }}
+              />
+            </div>
+          )}
+          <button className="rc-expand" onClick={() => setAuditOpen((v) => !v)} aria-expanded={auditOpen}>
+            {auditOpen ? "▾ Collapse" : "▸ Expand"}
+          </button>
         </div>
-        {shownAudit.length === 0 ? (
+        {auditOpen && (shownAudit.length === 0 ? (
           <p className="muted">No published changes{data.audit.length ? " match those filters" : " yet"}.</p>
         ) : (
           <table className="admin-table">
@@ -5439,10 +5462,12 @@ function Rates() {
               })}
             </tbody>
           </table>
+        ))}
+        {auditOpen && (
+          <p className="muted" style={{ fontSize: "0.76rem", marginBottom: 0 }}>
+            Showing {shownAudit.length} of the last {data.audit.length} published changes — the full history stays on record.
+          </p>
         )}
-        <p className="muted" style={{ fontSize: "0.76rem", marginBottom: 0 }}>
-          Showing {shownAudit.length} of the last {data.audit.length} published changes — the full history stays on record.
-        </p>
       </section>
     </div>
   );

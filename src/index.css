@@ -4396,3 +4396,20 @@ h1, h2, h3, h4 {
   white-space: nowrap;
 }
 .rc-tooltip span { display: flex; align-items: center; gap: 0.4rem; }
+
+.rc-expand {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rc-expand:hover {
+  border-color: var(--maroon);
+  color: var(--maroon-bright);
+}
