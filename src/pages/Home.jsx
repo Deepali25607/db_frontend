@@ -167,14 +167,6 @@ export default function Home() {
               </h1>
             )}
             {heroSub && <p className="hero-sub">{heroSub}</p>}
-            <div className="hero-cta">
-              <Link to="/shop" className="btn btn-green">
-                Discover the Collection <span className="arrow">→</span>
-              </Link>
-              <Link to="/shop?occasion=wedding" className="btn btn-outline" style={{ color: "var(--cream)", borderColor: "rgba(246,239,222,.4)" }}>
-                Bridal Edit
-              </Link>
-            </div>
             <div className="hero-hallmark">
               <span>BIS · HUID</span>
               <span>IGI / SGL Certified</span>
@@ -197,6 +189,14 @@ export default function Home() {
         <div className="container">
           <Reveal className="section-head">
             <span className="eyebrow">Collections</span>
+            <div className="section-cta">
+              <Link to="/shop" className="btn btn-green">
+                Discover the Collection <span className="arrow">→</span>
+              </Link>
+              <Link to="/shop?occasion=wedding" className="btn btn-outline">
+                Bridal Edit
+              </Link>
+            </div>
             <h2 className="section-title">
               Shop by <em>category.</em>
             </h2>
