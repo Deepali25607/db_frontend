@@ -125,14 +125,17 @@ export default function Home() {
       .catch(() => setCategories([]));
   }, []);
 
-  // admin-managed copy (Settings → Company branding), with house defaults
-  const heroEyebrow = content?.heroEyebrow || "Est. 1962 · BIS Hallmarked";
-  const heroLine1 = content?.heroLine1 || "Light,";
-  const heroLine2 = content?.heroLine2 || "Rendered";
-  const heroLine3 = content?.heroLine3 || "Eternal.";
+  // admin-managed copy (Settings → Company branding). House defaults apply
+  // only before the content loads — a field saved BLANK stays hidden, so the
+  // hero can run as pure film with no words at all.
+  const heroEyebrow = content?.heroEyebrow ?? "Est. 1962 · BIS Hallmarked";
+  const heroLine1 = content?.heroLine1 ?? "Light,";
+  const heroLine2 = content?.heroLine2 ?? "Rendered";
+  const heroLine3 = content?.heroLine3 ?? "Eternal.";
   const heroSub =
-    content?.heroSub ||
+    content?.heroSub ??
     "Hand-set diamonds and 22K gold, priced live on today's rate and composed by our atelier — three generations in the making.";
+  const anyHeadline = heroLine1 || heroLine2 || heroLine3;
 
   return (
     <>
@@ -155,13 +158,15 @@ export default function Home() {
         )}
         <div className="container">
           <div className="hero-content">
-            <span className="eyebrow">{heroEyebrow}</span>
-            <h1 className="hero-title">
-              <span className="line"><span>{heroLine1}</span></span>
-              <span className="line"><span><em>{heroLine2}</em></span></span>
-              <span className="line"><span>{heroLine3}</span></span>
-            </h1>
-            <p className="hero-sub">{heroSub}</p>
+            {heroEyebrow && <span className="eyebrow">{heroEyebrow}</span>}
+            {anyHeadline && (
+              <h1 className="hero-title">
+                {heroLine1 && <span className="line"><span>{heroLine1}</span></span>}
+                {heroLine2 && <span className="line"><span><em>{heroLine2}</em></span></span>}
+                {heroLine3 && <span className="line"><span>{heroLine3}</span></span>}
+              </h1>
+            )}
+            {heroSub && <p className="hero-sub">{heroSub}</p>}
             <div className="hero-cta">
               <Link to="/shop" className="btn btn-green">
                 Discover the Collection <span className="arrow">→</span>

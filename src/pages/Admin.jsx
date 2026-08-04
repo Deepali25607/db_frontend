@@ -376,8 +376,8 @@ function BrandingPanel({ onSaved }) {
   const FIELDS = [
     ["companyName", "Company name", "Shown in the header, footer and copyright."],
     ["companyTagline", "Tagline", "The small line under the company name."],
-    ["heroEyebrow", "Hero eyebrow", "The small capitals line above the headline."],
-    ["heroLine1", "Headline — line 1", ""],
+    ["heroEyebrow", "Hero eyebrow", "The small capitals line above the headline. Leave blank to hide it."],
+    ["heroLine1", "Headline — line 1", "Hero lines left blank stay hidden — a words-free hero is fine."],
     ["heroLine2", "Headline — line 2 (rendered in gold italic)", ""],
     ["heroLine3", "Headline — line 3", ""],
   ];
@@ -430,7 +430,7 @@ function BrandingPanel({ onSaved }) {
           </div>
         ))}
         <div className="field">
-          <label htmlFor="content-heroSub">Hero sentence — the paragraph under the headline</label>
+          <label htmlFor="content-heroSub">Hero sentence — the paragraph under the headline. Leave blank to hide it.</label>
           <textarea
             id="content-heroSub"
             rows={3}
