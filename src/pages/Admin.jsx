@@ -7,11 +7,60 @@ const fmtDate = (iso) =>
     day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   });
 
+/* One tile per admin module — the same catalog the server enforces.
+   `nav` is the tab label; `hint` explains the tile when granting it. */
+const PERMISSION_DEFINITIONS = [
+  { id: "dashboard", nav: "Dashboard", hint: "KPIs, abandoned bags and business reports.", color: "#5b74c0" },
+  { id: "orders", nav: "Orders", hint: "Order lifecycle — statuses, documents, delivery.", color: "#b02a45" },
+  { id: "customers", nav: "Customers", hint: "Customer directory and full profiles.", color: "#27754c" },
+  { id: "rates", nav: "Rate Console", hint: "Publish metal rates and approve proposals.", color: "#9a721a" },
+  { id: "catalogue", nav: "Catalogue", hint: "Products, stock, images and CSV bulk edits.", color: "#8c5b3f" },
+  { id: "schemes", nav: "Schemes", hint: "Gold savings schemes and instalments.", color: "#7a5c96" },
+  { id: "returns", nav: "Returns", hint: "Return requests and refunds.", color: "#3d7d84" },
+  { id: "appointments", nav: "Appointments", hint: "Showroom visit bookings.", color: "#a2543c" },
+  { id: "callbacks", nav: "Call-backs", hint: "Requested product call-backs.", color: "#5f7d3a" },
+  { id: "promos", nav: "Promos", hint: "Coupons and promotional codes.", color: "#b0642a" },
+  { id: "buyback", nav: "Buyback", hint: "Old-gold exchange requests.", color: "#6d6d3f" },
+  { id: "enquiries", nav: "Enquiries", hint: "Custom-piece enquiries.", color: "#84406b" },
+  { id: "notifications", nav: "Notifications", hint: "Outbound message log.", color: "#4f6f8f" },
+  { id: "settings", nav: "Settings", hint: "Branding, policies, showrooms — every site setting.", color: "#3a5f52" },
+  { id: "admin-users", nav: "Admin Users", hint: "Manage who can access this portal.", color: "#8c1626" },
+];
+const permDef = (id) => PERMISSION_DEFINITIONS.find((p) => p.id === id) || { id, nav: id, hint: "", color: "#888" };
+
 export default function Admin() {
   const [authed, setAuthed] = useState(adminApi.hasKey());
+  const [me, setMe] = useState(null); // hash-stripped admin + catalog, from /me
   const [tab, setTab] = useState("dashboard");
 
+  useEffect(() => {
+    if (!authed) return;
+    adminApi
+      .me()
+      .then((d) => {
+        setMe(d);
+        if (!d.admin.permissions.includes("dashboard")) {
+          const first = PERMISSION_DEFINITIONS.find((p) => d.admin.permissions.includes(p.id));
+          if (first) setTab(first.id);
+        }
+      })
+      .catch(() => {
+        // stored credential no longer valid — clear it and show the login
+        adminApi.logout();
+        setMe(null);
+        setAuthed(false);
+      });
+  }, [authed]);
+
   if (!authed) return <AdminLogin onAuthed={() => setAuthed(true)} />;
+  if (!me)
+    return (
+      <div className="admin-shell container">
+        <div className="skeleton" style={{ height: 300 }} />
+      </div>
+    );
+
+  const can = (tile) => me.admin.permissions.includes(tile);
 
   return (
     <div className="admin-shell container">
@@ -19,36 +68,25 @@ export default function Admin() {
         <div>
           <span className="eyebrow left" style={{ marginBottom: "0.2rem" }}>Back Office</span>
           <h1 style={{ fontSize: "1.9rem" }}>DP Jewellers Admin</h1>
+          <p className="muted" style={{ fontSize: "0.78rem", margin: "0.2rem 0 0" }}>
+            Signed in as {me.admin.master ? "the master key" : `${me.admin.name} (${me.admin.email})`}
+          </p>
         </div>
         <nav className="admin-tabs">
-          {[
-            ["dashboard", "Dashboard"],
-            ["orders", "Orders"],
-            ["customers", "Customers"],
-            ["rates", "Rate Console"],
-            ["catalogue", "Catalogue"],
-            ["schemes", "Schemes"],
-            ["returns", "Returns"],
-            ["appointments", "Appointments"],
-            ["callbacks", "Call-backs"],
-            ["promos", "Promos"],
-            ["buyback", "Buyback"],
-            ["enquiries", "Enquiries"],
-            ["notifications", "Notifications"],
-            ["settings", "Settings"],
-          ].map(([key, label]) => (
+          {PERMISSION_DEFINITIONS.filter((p) => can(p.id)).map(({ id, nav }) => (
             <button
-              key={key}
-              className={tab === key ? "active" : ""}
-              onClick={() => setTab(key)}
+              key={id}
+              className={tab === id ? "active" : ""}
+              onClick={() => setTab(id)}
             >
-              {label}
+              {nav}
             </button>
           ))}
           <button
             onClick={() => {
               adminApi.logout();
               setAuthed(false);
+              setMe(null);
             }}
           >
             Sign out
@@ -56,20 +94,42 @@ export default function Admin() {
         </nav>
       </header>
 
-      {tab === "dashboard" && <Dashboard goTo={setTab} />}
-      {tab === "orders" && <Orders />}
-      {tab === "customers" && <Customers />}
-      {tab === "rates" && <Rates />}
-      {tab === "catalogue" && <Catalogue />}
-      {tab === "schemes" && <Schemes />}
-      {tab === "returns" && <Returns />}
-      {tab === "appointments" && <Appointments />}
-      {tab === "callbacks" && <Callbacks />}
-      {tab === "promos" && <Promos />}
-      {tab === "buyback" && <Buyback />}
-      {tab === "enquiries" && <Enquiries />}
-      {tab === "notifications" && <Notifications />}
-      {tab === "settings" && <Settings />}
+      {!can(tab) ? (
+        <NoAccess tile={tab} goHome={() => setTab(PERMISSION_DEFINITIONS.find((p) => can(p.id))?.id || "dashboard")} />
+      ) : (
+        <>
+          {tab === "dashboard" && <Dashboard goTo={setTab} />}
+          {tab === "orders" && <Orders />}
+          {tab === "customers" && <Customers />}
+          {tab === "rates" && <Rates />}
+          {tab === "catalogue" && <Catalogue />}
+          {tab === "schemes" && <Schemes />}
+          {tab === "returns" && <Returns />}
+          {tab === "appointments" && <Appointments />}
+          {tab === "callbacks" && <Callbacks />}
+          {tab === "promos" && <Promos />}
+          {tab === "buyback" && <Buyback />}
+          {tab === "enquiries" && <Enquiries />}
+          {tab === "notifications" && <Notifications />}
+          {tab === "settings" && <Settings />}
+          {tab === "admin-users" && <AdminUsersPage me={me.admin} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function NoAccess({ tile, goHome }) {
+  const def = permDef(tile);
+  return (
+    <div className="rc-card" style={{ maxWidth: 520, margin: "3rem auto", textAlign: "center" }}>
+      <h3 style={{ marginTop: 0 }}>No access to this area</h3>
+      <p className="muted" style={{ fontSize: "0.9rem" }}>
+        Ask an admin who manages admin accounts to grant you the “{def.nav}” tile.
+      </p>
+      <button className="btn btn-maroon" style={{ padding: "0.5rem 1.4rem" }} onClick={goHome}>
+        Back to my dashboard
+      </button>
     </div>
   );
 }
@@ -3301,39 +3361,433 @@ function Appointments() {
 
 /* ---------------------------------------------------------- login */
 function AdminLogin({ onAuthed }) {
+  const [mode, setMode] = useState("account"); // account | key
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [key, setKey] = useState("");
   const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
+    setBusy(true);
+    setError(null);
     try {
-      await adminApi.login(key);
+      await adminApi.login(mode === "key" ? key : { email, password });
       onAuthed();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="container" style={{ maxWidth: 420, padding: "6rem 0 8rem" }}>
       <span className="eyebrow">Back Office</span>
-      <h1 className="section-title" style={{ marginBottom: "2rem" }}>
+      <h1 className="section-title" style={{ marginBottom: "1.4rem" }}>
         Admin <em>sign in.</em>
       </h1>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.4rem" }}>
+        <button
+          type="button"
+          className={mode === "account" ? "btn btn-maroon" : "btn btn-outline"}
+          style={{ padding: "0.4rem 1rem" }}
+          onClick={() => setMode("account")}
+        >
+          Email &amp; password
+        </button>
+        <button
+          type="button"
+          className={mode === "key" ? "btn btn-maroon" : "btn btn-outline"}
+          style={{ padding: "0.4rem 1rem" }}
+          onClick={() => setMode("key")}
+        >
+          Master key
+        </button>
+      </div>
       <form className="checkout-form" onSubmit={submit}>
-        <div className="field">
-          <label htmlFor="admin-key">Admin key</label>
-          <input
-            id="admin-key"
-            type="password"
-            required
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-          />
-        </div>
+        {mode === "account" ? (
+          <>
+            <div className="field">
+              <label htmlFor="admin-email">Email</label>
+              <input id="admin-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="admin-password">Password</label>
+              <input id="admin-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+          </>
+        ) : (
+          <div className="field">
+            <label htmlFor="admin-key">Admin key</label>
+            <input id="admin-key" type="password" required value={key} onChange={(e) => setKey(e.target.value)} />
+          </div>
+        )}
         {error && <p className="form-error">{error}</p>}
-        <button className="btn btn-maroon">Enter</button>
+        <button className="btn btn-maroon" disabled={busy}>{busy ? "Signing in…" : "Enter"}</button>
       </form>
+    </div>
+  );
+}
+
+/* ------------------------------------------------ Admin Users (tile) */
+function TilePicker({ value, onChange, disabled, hint }) {
+  const all = PERMISSION_DEFINITIONS.map((p) => p.id);
+  const flip = (id) =>
+    onChange(value.includes(id) ? value.filter((k) => k !== id) : [...value, id]);
+  return (
+    <div>
+      <div className="au-tilehead">
+        <span className="muted" style={{ fontSize: "0.78rem" }}>
+          {hint || "Pick every dashboard tile this admin should be able to see and act on."}
+        </span>
+        <span style={{ display: "inline-flex", gap: "0.6rem", alignItems: "center" }}>
+          <small className="muted">{value.length} of {all.length} selected</small>
+          {!disabled && (
+            <>
+              <button type="button" className="link-underline au-mini" onClick={() => onChange([...all])}>Select all</button>
+              <button type="button" className="link-underline au-mini" onClick={() => onChange([])}>Clear</button>
+            </>
+          )}
+        </span>
+      </div>
+      <div className="au-tiles">
+        {PERMISSION_DEFINITIONS.map((p) => {
+          const on = value.includes(p.id);
+          return (
+            <label key={p.id} className={`au-tile ${on ? "on" : ""} ${disabled ? "locked" : ""}`}>
+              <input type="checkbox" checked={on} disabled={disabled} onChange={() => flip(p.id)} />
+              <span>
+                <span className="au-chip" style={{ background: `${p.color}22`, color: p.color }}>{p.nav}</span>
+                <small className="muted">{p.hint}</small>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FieldErrors({ errors }) {
+  if (!errors?.length) return null;
+  return <p className="form-error" style={{ margin: "0.3rem 0 0" }}>{errors.join(" · ")}</p>;
+}
+
+const PW_HINT = "Min 8 chars, with uppercase, number, and special character.";
+
+function AdminUserModal({ mode, user, me, onClose, onDone }) {
+  const editing = mode === "edit";
+  const self = editing && user.id === me.id;
+  const [name, setName] = useState(editing ? user.name : "");
+  const [email, setEmail] = useState(editing ? user.email : "");
+  const [password, setPassword] = useState("");
+  const [tiles, setTiles] = useState(editing ? [...user.permissions] : []);
+  const [status, setStatus] = useState(editing ? user.status : "Active");
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setErrors({});
+    if (!editing && tiles.length === 0) {
+      setErrors({ permissions: ["Pick at least one tile"] });
+      return;
+    }
+    setBusy(true);
+    try {
+      if (editing) {
+        const patch = {};
+        if (name.trim() !== user.name) patch.name = name.trim();
+        if (!self && JSON.stringify([...tiles].sort()) !== JSON.stringify([...user.permissions].sort()))
+          patch.permissions = tiles;
+        if (!self && status !== user.status) patch.status = status;
+        if (Object.keys(patch).length === 0) {
+          onClose();
+          return;
+        }
+        await adminApi.patchAdminUser(user.id, patch);
+        onDone("Admin updated");
+      } else {
+        await adminApi.createAdminUser({ name: name.trim(), email: email.trim(), password, permissions: tiles });
+        onDone(`${email.trim().toLowerCase()} created`);
+      }
+    } catch (err) {
+      if (err.fieldErrors) setErrors(err.fieldErrors);
+      else setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="od-overlay" style={{ zIndex: 242 }} onClick={onClose} />
+      <div className="od-modal" style={{ width: "min(640px, calc(100vw - 2rem))" }} role="dialog" aria-label={editing ? `Edit ${user.email}` : "Add admin"}>
+        <h3>{editing ? `Edit ${user.email}` : "Add admin"}</h3>
+        <form onSubmit={submit} className="checkout-form" style={{ display: "grid", gap: "0.8rem" }}>
+          <div className="field">
+            <label>Full name</label>
+            <input required value={name} onChange={(e) => setName(e.target.value)} />
+            <FieldErrors errors={errors.name} />
+          </div>
+          <div className="field">
+            <label>Email {editing && <span className="muted">— cannot be changed</span>}</label>
+            <input type="email" required={!editing} value={email} disabled={editing} onChange={(e) => setEmail(e.target.value)} />
+            <FieldErrors errors={errors.email} />
+          </div>
+          {!editing && (
+            <div className="field">
+              <label>Initial password <span className="muted">— {PW_HINT}</span></label>
+              <input required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Visible so you can copy it" />
+              <FieldErrors errors={errors.password} />
+            </div>
+          )}
+          <div className="field">
+            <label>Dashboard tiles</label>
+            <TilePicker
+              value={tiles}
+              onChange={setTiles}
+              disabled={self}
+              hint={self ? "You cannot change your own permissions." : undefined}
+            />
+            <FieldErrors errors={errors.permissions} />
+          </div>
+          {editing && (
+            <div className="field">
+              <label>Status {self && <span className="muted">— you cannot disable yourself</span>}</label>
+              <select value={status} disabled={self} onChange={(e) => setStatus(e.target.value)}>
+                <option>Active</option>
+                <option>Disabled</option>
+              </select>
+            </div>
+          )}
+          {error && <p className="form-error">{error}</p>}
+          <div className="od-actions">
+            <button className="btn btn-maroon" style={{ padding: "0.5rem 1.3rem" }} disabled={busy}>
+              {busy ? "Saving…" : editing ? "Save changes" : "Create admin"}
+            </button>
+            <button type="button" className="btn btn-outline" style={{ padding: "0.5rem 1.3rem" }} onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+function ResetPasswordModal({ user, onClose, onDone }) {
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setErrors(null);
+    try {
+      await adminApi.resetAdminPassword(user.id, password);
+      onDone(`Password reset for ${user.email}. Their sessions have been ended.`);
+    } catch (err) {
+      if (err.fieldErrors?.password) setErrors(err.fieldErrors.password);
+      else setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="od-overlay" style={{ zIndex: 242 }} onClick={onClose} />
+      <div className="od-modal" role="dialog" aria-label={`Reset password for ${user.email}`}>
+        <h3>Reset password for {user.email}</h3>
+        <p className="od-warn" style={{ background: "rgba(176,141,87,.14)", borderColor: "rgba(176,141,87,.45)", color: "#7a5c2e" }}>
+          This admin's existing sessions will be revoked immediately. Share the
+          new password through a secure channel.
+        </p>
+        <form onSubmit={submit} className="checkout-form" style={{ display: "grid", gap: "0.8rem" }}>
+          <div className="field">
+            <label>New password <span className="muted">— {PW_HINT}</span></label>
+            <input required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <FieldErrors errors={errors} />
+          </div>
+          {error && <p className="form-error">{error}</p>}
+          <div className="od-actions">
+            <button className="btn btn-maroon" style={{ padding: "0.5rem 1.3rem" }} disabled={busy}>
+              {busy ? "Resetting…" : "Reset password"}
+            </button>
+            <button type="button" className="btn btn-outline" style={{ padding: "0.5rem 1.3rem" }} onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+function AdminUsersPage({ me }) {
+  const [data, setData] = useState(null);
+  const [f, setF] = useState({ q: "", permission: "", status: "" });
+  const [page, setPage] = useState(1);
+  const [version, setVersion] = useState(0);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [modal, setModal] = useState(null); // {type, user?}
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      adminApi
+        .adminUsers({ q: f.q.trim(), permission: f.permission, status: f.status, page, limit: 20 })
+        .then((d) => {
+          setData(d);
+          setError(null);
+        })
+        .catch((e) => setError(e.message));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [f, page, version]);
+
+  const reload = () => setVersion((v) => v + 1);
+  const set = (k) => (e) => {
+    const value = e.target.value;
+    setPage(1);
+    setF((prev) => ({ ...prev, [k]: value }));
+  };
+
+  const disable = async (u) => {
+    if (!window.confirm(`Disable ${u.name} (${u.email})? Their sessions will be ended immediately.`)) return;
+    setError(null);
+    setNote(null);
+    try {
+      await adminApi.disableAdminUser(u.id);
+      setNote(`${u.email} disabled — their sessions are ended.`);
+      reload();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  if (error && !data) return <p className="form-error">{error}</p>;
+  if (!data) return <div className="skeleton" style={{ height: 300 }} />;
+
+  const meta = data.meta || { page: 1, total: data.users.length, totalPages: 1 };
+  const sel = {
+    padding: "0.5rem 0.65rem", border: "1px solid var(--line)", borderRadius: 9,
+    background: "var(--cream)", font: "inherit", fontSize: "0.86rem",
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.8rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+        <div style={{ marginRight: "auto" }}>
+          <h3 className="admin-subhead" style={{ margin: 0 }}>Admin Users</h3>
+          <p className="muted" style={{ fontSize: "0.82rem", margin: "0.15rem 0 0" }}>
+            Master list of accounts with portal access.
+          </p>
+        </div>
+        <a className="btn btn-outline" style={{ padding: "0.45rem 1rem" }} href={adminApi.exportUrl("admin-users")}>
+          ⤓ Export CSV
+        </a>
+        <button className="btn btn-maroon" style={{ padding: "0.45rem 1.1rem" }} onClick={() => setModal({ type: "add" })}>
+          + Add admin
+        </button>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {note && <p className="admin-note">{note}</p>}
+
+      <div className="od-filterbar" style={{ gridTemplateColumns: "2fr 1fr 1fr" }}>
+        <input style={sel} placeholder="Search name or email…" value={f.q} onChange={set("q")} aria-label="Search admins" />
+        <select style={sel} value={f.permission} onChange={set("permission")} aria-label="Filter by permission">
+          <option value="">All permissions</option>
+          {PERMISSION_DEFINITIONS.map((p) => <option key={p.id} value={p.id}>{p.nav}</option>)}
+        </select>
+        <select style={sel} value={f.status} onChange={set("status")} aria-label="Filter by status">
+          <option value="">All status</option>
+          <option>Active</option>
+          <option>Disabled</option>
+        </select>
+      </div>
+
+      {data.users.length === 0 ? (
+        <p className="muted">No admins match these filters.</p>
+      ) : (
+        <table className="admin-table">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Permissions</th><th>Status</th><th>Last login</th><th style={{ textAlign: "right" }}>Actions</th></tr>
+          </thead>
+          <tbody>
+            {data.users.map((u) => {
+              const self = u.id === me.id;
+              return (
+                <tr key={u.id} style={u.status === "Disabled" ? { opacity: 0.55 } : undefined}>
+                  <td>
+                    <strong>{u.name}</strong>
+                    {self && <small style={{ display: "block" }}><span className="status-pill" style={{ background: "rgba(63,108,76,.18)", color: "var(--green)" }}>YOU</span></small>}
+                  </td>
+                  <td>{u.email}</td>
+                  <td>
+                    <span className="au-chips">
+                      {u.permissions.length === 0 ? "—" : u.permissions.map((k) => {
+                        const p = permDef(k);
+                        return <span key={k} className="au-chip" style={{ background: `${p.color}22`, color: p.color }}>{p.nav}</span>;
+                      })}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="status-pill" style={u.status === "Active" ? { background: "rgba(63,108,76,.18)", color: "var(--green)" } : { background: "rgba(120,120,120,.18)" }}>
+                      {u.status}
+                    </span>
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>{u.lastLogin ? fmtDate(u.lastLogin) : "—"}</td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <button className="btn btn-outline au-act" title="Edit" onClick={() => setModal({ type: "edit", user: u })}>✎</button>
+                    <button
+                      className="btn btn-outline au-act"
+                      title={self ? "Use My Profile to change your password" : "Reset password"}
+                      disabled={self}
+                      onClick={() => setModal({ type: "reset", user: u })}
+                    >⚿</button>
+                    <button
+                      className="btn btn-outline au-act od-danger"
+                      title={self ? "Cannot disable yourself" : u.status === "Disabled" ? "Already disabled" : "Disable"}
+                      disabled={self || u.status === "Disabled"}
+                      onClick={() => disable(u)}
+                    >⊘</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <div className="od-listfoot">
+        <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
+          Page {meta.page} of {meta.totalPages} · {meta.total} admin{meta.total === 1 ? "" : "s"} · disabled accounts stay on record and can be re-activated from Edit.
+        </p>
+        {meta.totalPages > 1 && (
+          <span style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
+            <button className="btn btn-outline" style={{ padding: "0.35rem 0.9rem" }} disabled={meta.page <= 1} onClick={() => setPage(meta.page - 1)}>← Prev</button>
+            <button className="btn btn-outline" style={{ padding: "0.35rem 0.9rem" }} disabled={meta.page >= meta.totalPages} onClick={() => setPage(meta.page + 1)}>Next →</button>
+          </span>
+        )}
+      </div>
+
+      {modal?.type === "add" && (
+        <AdminUserModal mode="add" me={me} onClose={() => setModal(null)} onDone={(msg) => { setModal(null); setNote(msg); reload(); }} />
+      )}
+      {modal?.type === "edit" && (
+        <AdminUserModal mode="edit" user={modal.user} me={me} onClose={() => setModal(null)} onDone={(msg) => { setModal(null); setNote(msg); reload(); }} />
+      )}
+      {modal?.type === "reset" && (
+        <ResetPasswordModal user={modal.user} onClose={() => setModal(null)} onDone={(msg) => { setModal(null); setNote(msg); }} />
+      )}
     </div>
   );
 }

@@ -2,7 +2,10 @@ async function request(path, options) {
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || `Request failed (${res.status})`);
+    const err = new Error(data.error || `Request failed (${res.status})`);
+    // per-field validation messages ride along for forms that can use them
+    if (data.details?.fieldErrors) err.fieldErrors = data.details.fieldErrors;
+    throw err;
   }
   return data;
 }
@@ -195,22 +198,58 @@ export const accountApi = {
 };
 
 // ---------------------------------------------------------------- admin
-const adminHeaders = () => ({
-  "Content-Type": "application/json",
-  "x-admin-key": localStorage.getItem("dpj_admin_key") || "",
-});
+// Auth carries either the master key or a personal session token.
+const adminHeaders = () => {
+  const h = { "Content-Type": "application/json" };
+  const key = localStorage.getItem("dpj_admin_key");
+  const token = localStorage.getItem("dpj_admin_token");
+  if (key) h["x-admin-key"] = key;
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  return h;
+};
 
 export const adminApi = {
-  login: async (key) => {
-    await request("/api/admin/login", {
+  login: async (cred) => {
+    if (typeof cred === "string") {
+      await request("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: cred }),
+      });
+      localStorage.setItem("dpj_admin_key", cred);
+      localStorage.removeItem("dpj_admin_token");
+      return;
+    }
+    const res = await request("/api/admin/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key }),
+      body: JSON.stringify({ email: cred.email, password: cred.password }),
     });
-    localStorage.setItem("dpj_admin_key", key);
+    localStorage.setItem("dpj_admin_token", res.token);
+    localStorage.removeItem("dpj_admin_key");
+    return res;
   },
-  logout: () => localStorage.removeItem("dpj_admin_key"),
-  hasKey: () => Boolean(localStorage.getItem("dpj_admin_key")),
+  logout: () => {
+    fetch("/api/admin/logout", { method: "POST", headers: adminHeaders() }).catch(() => {});
+    localStorage.removeItem("dpj_admin_key");
+    localStorage.removeItem("dpj_admin_token");
+  },
+  hasKey: () => Boolean(localStorage.getItem("dpj_admin_key") || localStorage.getItem("dpj_admin_token")),
+  me: () => request("/api/admin/me", { headers: adminHeaders() }),
+  adminUsers: (params) => {
+    const qs = params
+      ? "?" + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null)).toString()
+      : "";
+    return request(`/api/admin/users${qs}`, { headers: adminHeaders() });
+  },
+  createAdminUser: (body) =>
+    request("/api/admin/users", { method: "POST", headers: adminHeaders(), body: JSON.stringify(body) }),
+  patchAdminUser: (id, body) =>
+    request(`/api/admin/users/${id}`, { method: "PATCH", headers: adminHeaders(), body: JSON.stringify(body) }),
+  resetAdminPassword: (id, password) =>
+    request(`/api/admin/users/${id}/password`, { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ password }) }),
+  disableAdminUser: (id) =>
+    request(`/api/admin/users/${id}`, { method: "DELETE", headers: adminHeaders() }),
   summary: () => request("/api/admin/summary", { headers: adminHeaders() }),
   orders: (params) => {
     const qs = params
@@ -301,8 +340,13 @@ export const adminApi = {
       headers: adminHeaders(),
       body: JSON.stringify(body),
     }),
-  exportUrl: (report) =>
-    `/api/admin/export/${report}.csv?key=${encodeURIComponent(localStorage.getItem("dpj_admin_key") || "")}`,
+  exportUrl: (report) => {
+    const key = localStorage.getItem("dpj_admin_key");
+    const auth = key
+      ? `key=${encodeURIComponent(key)}`
+      : `token=${encodeURIComponent(localStorage.getItem("dpj_admin_token") || "")}`;
+    return `/api/admin/export/${report}.csv?${auth}`;
+  },
   abandoned: () => request("/api/admin/abandoned", { headers: adminHeaders() }),
   analytics: () => request("/api/admin/analytics", { headers: adminHeaders() }),
   config: () => request("/api/admin/config", { headers: adminHeaders() }),

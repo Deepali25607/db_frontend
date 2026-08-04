@@ -4545,3 +4545,78 @@ h1, h2, h3, h4 {
 .editorial-media img {
   filter: saturate(1.08) contrast(1.03) brightness(1.02);
 }
+
+/* ------------------------------------------------ admin users page */
+.au-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.au-chip {
+  display: inline-block;
+  padding: 0.14rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.au-act {
+  padding: 0.3rem 0.6rem;
+  margin-left: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.au-act:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.au-tilehead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.au-mini {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.76rem;
+  cursor: pointer;
+  color: inherit;
+}
+.au-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.5rem;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+.au-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  background: var(--paper);
+}
+.au-tile.on {
+  border-color: var(--maroon);
+  box-shadow: 0 0 0 1px var(--maroon) inset;
+}
+.au-tile.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.au-tile input {
+  margin-top: 0.2rem;
+}
+.au-tile small {
+  display: block;
+  font-size: 0.7rem;
+  margin-top: 0.25rem;
+}
