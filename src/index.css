@@ -4413,3 +4413,104 @@ h1, h2, h3, h4 {
   border-color: var(--maroon);
   color: var(--maroon-bright);
 }
+
+/* ------------------------------ homepage: cinematic hero + category mosaic */
+/* the video keeps drifting after the entrance — a slow push-in like a
+   camera move, so the hero reads as film rather than a placed image */
+.hero video.hero-img {
+  animation:
+    heroImg 1.6s var(--ease-out) both,
+    heroDrift 38s ease-in-out 1.6s infinite alternate;
+}
+@keyframes heroDrift {
+  from { transform: scale(1) translateX(0); }
+  to { transform: scale(1.1) translateX(-1.6%); }
+}
+
+/* a soft band of light passes across the jewellery every few seconds */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 34%,
+    rgba(255, 236, 190, 0.12) 47%,
+    rgba(255, 255, 255, 0.06) 51%,
+    transparent 66%
+  );
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  mix-blend-mode: screen;
+  animation: heroSheen 13s ease-in-out 3.5s infinite;
+}
+@keyframes heroSheen {
+  0% { background-position: 130% 0; }
+  46% { background-position: -70% 0; }
+  100% { background-position: -70% 0; }
+}
+
+/* deeper foot scrim so the hero settles gently into the page */
+.hero::before {
+  background:
+    linear-gradient(90deg, rgba(12, 9, 6, 0.78) 0%, rgba(12, 9, 6, 0.46) 40%, rgba(12, 9, 6, 0.1) 66%, rgba(12, 9, 6, 0) 100%),
+    linear-gradient(to top, rgba(12, 9, 6, 0.58), transparent 34%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero video.hero-img { animation: heroImg 1.6s var(--ease-out) both; }
+  .hero::after { display: none; }
+}
+
+/* Bluestone-style category mosaic — large lifestyle cards in a woven grid.
+   Applies on desktop only; phones keep the sideways swipe deck. */
+@media (min-width: 861px) {
+  .cat-mosaic {
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 252px;
+    grid-template-areas:
+      "a b b c"
+      "a d e c"
+      "f f g g";
+    gap: 1.1rem;
+  }
+  .cat-mosaic > :nth-child(1) { grid-area: a; }
+  .cat-mosaic > :nth-child(2) { grid-area: b; }
+  .cat-mosaic > :nth-child(3) { grid-area: c; }
+  .cat-mosaic > :nth-child(4) { grid-area: d; }
+  .cat-mosaic > :nth-child(5) { grid-area: e; }
+  .cat-mosaic > :nth-child(6) { grid-area: f; }
+  .cat-mosaic > :nth-child(7) { grid-area: g; }
+  .cat-mosaic > * { height: 100%; }
+  .cat-mosaic .cat-card {
+    aspect-ratio: auto;
+    height: 100%;
+    box-shadow: 0 1px 0 rgba(56, 7, 15, 0.06);
+    transition: box-shadow 0.5s var(--ease-out);
+  }
+  .cat-mosaic .cat-card:hover {
+    box-shadow: 0 26px 50px -24px rgba(56, 7, 15, 0.5);
+  }
+  .cat-mosaic .cat-card-label h3 {
+    font-size: 1.55rem;
+    letter-spacing: 0.01em;
+  }
+  .cat-mosaic .cat-card-label p {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.45s var(--ease-out), transform 0.45s var(--ease-out);
+  }
+  .cat-mosaic .cat-card:hover .cat-card-label p {
+    opacity: 1;
+    transform: none;
+  }
+  .cat-mosaic .cat-card::after {
+    background: linear-gradient(to top, rgba(35, 20, 10, 0.78), rgba(35, 20, 10, 0.12) 46%, transparent 62%);
+    transition: background 0.5s var(--ease-out);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cat-mosaic .cat-card-label p { opacity: 1; transform: none; }
+}

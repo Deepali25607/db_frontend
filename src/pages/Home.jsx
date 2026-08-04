@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import Counter from "../components/Counter";
 import ProductCard from "../components/ProductCard";
 import Reveal from "../components/Reveal";
 import { useStore } from "../context/StoreContext";
@@ -188,39 +187,17 @@ export default function Home() {
         />
       )}
 
-      {/* -------------------------------------------------- stats */}
-      <section className="stats-band">
-        <div className="container stats-grid">
-          <Reveal>
-            <div className="stat-value"><Counter to={3.5} decimals={1} suffix="k" /></div>
-            <div className="stat-label">Unique designs</div>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <div className="stat-value"><Counter to={98} suffix="%" /></div>
-            <div className="stat-label">Satisfaction rate</div>
-          </Reveal>
-          <Reveal delay={0.16}>
-            <div className="stat-value"><Counter to={49} suffix="k+" /></div>
-            <div className="stat-label">Happy customers</div>
-          </Reveal>
-          <Reveal delay={0.24}>
-            <div className="stat-value"><Counter to={1.7} decimals={1} suffix="k" /></div>
-            <div className="stat-label">Luxury pieces</div>
-          </Reveal>
-        </div>
-      </section>
-
       {/* -------------------------------------------------- categories */}
       <section className="section">
         <div className="container">
           <Reveal className="section-head">
             <span className="eyebrow">Collections</span>
             <h2 className="section-title">
-              Seven houses <em>of light.</em>
+              Shop by <em>category.</em>
             </h2>
             <p className="swipe-hint" aria-hidden>‹ swipe sideways ›</p>
           </Reveal>
-          <div className="cat-grid m-swipe">
+          <div className="cat-grid cat-mosaic m-swipe">
             {(categories || Array.from({ length: 5 })).map((c, i) =>
               c ? (
                 <Reveal key={c.key} delay={i * 0.06}>
