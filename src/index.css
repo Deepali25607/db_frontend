@@ -4526,3 +4526,22 @@ h1, h2, h3, h4 {
   flex-wrap: wrap;
   margin: 0.5rem 0 1.1rem;
 }
+
+/* --------------------------- media enhancement — uploaded photos & film
+   get a consistent professional grade: a touch more colour and depth so
+   catalogue shots and admin uploads read rich rather than flat. Kept
+   subtle to protect skin tones and metal hues; documents are untouched. */
+.hero-img,
+.hero video.hero-img {
+  filter: saturate(1.12) contrast(1.06) brightness(1.03);
+}
+.gallery-main img,
+.gallery-thumbs img,
+.product-media img,
+.cat-card img {
+  filter: saturate(1.08) contrast(1.04);
+}
+.promo-track img,
+.editorial-media img {
+  filter: saturate(1.08) contrast(1.03) brightness(1.02);
+}
