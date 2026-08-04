@@ -167,11 +167,6 @@ export default function Home() {
               </h1>
             )}
             {heroSub && <p className="hero-sub">{heroSub}</p>}
-            <div className="hero-hallmark">
-              <span>BIS · HUID</span>
-              <span>IGI / SGL Certified</span>
-              <span>Insured Delivery</span>
-            </div>
           </div>
         </div>
       </section>
