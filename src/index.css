@@ -4877,3 +4877,181 @@ body.admin-calm.has-bg::before {
   .dash-kpi, .dash-act { transition: none; }
   .dash-kpi:hover, .dash-act:hover { transform: none; }
 }
+
+/* --------------------------------------------- search: discovery overlay */
+.so-inner {
+  width: min(1060px, 92vw);
+  margin: 0 auto;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 3rem;
+  scrollbar-width: thin;
+}
+.so-inputwrap {
+  border-bottom: 2px solid color-mix(in srgb, var(--gold) 55%, transparent);
+  margin-top: 0.4rem;
+}
+.shop-clear-q {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.so-lounge { display: grid; gap: 1.6rem; margin-top: 1.8rem; }
+.so-block h4 {
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 0.6rem;
+}
+.so-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.so-chip {
+  display: inline-block;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: inherit;
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+}
+.so-chip:hover { border-color: var(--maroon); transform: translateY(-1px); }
+.so-chip-quiet { opacity: 0.55; border-style: dashed; }
+.so-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.7rem;
+}
+.so-cat {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  padding: 0.45rem 0.6rem;
+  transition: border-color 0.25s var(--ease-out), box-shadow 0.3s var(--ease-out);
+}
+.so-cat:hover {
+  border-color: var(--gold);
+  box-shadow: 0 12px 26px -18px rgba(56, 7, 15, 0.4);
+}
+.so-cat img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 9px;
+}
+.so-cat span { font-size: 0.86rem; line-height: 1.25; }
+.so-cat small { display: block; color: var(--ink-faint); font-size: 0.7rem; }
+
+.so-results {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 1.2rem;
+  margin-top: 1.6rem;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .so-results { grid-template-columns: 1fr; }
+  .so-preview { display: none; }
+}
+.so-list { display: grid; gap: 0.4rem; }
+.so-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  border-radius: 12px;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+  transition: background 0.2s var(--ease-out), border-color 0.2s var(--ease-out);
+}
+.so-row.active {
+  background: var(--paper);
+  border-color: var(--gold);
+}
+.so-row img {
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.so-row-main { min-width: 0; }
+.so-row-main strong {
+  display: block;
+  font-family: var(--serif, "Playfair Display", serif);
+  font-weight: 500;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.so-row-main small {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  text-transform: capitalize;
+}
+.so-row-price {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.so-viewall {
+  margin-top: 0.5rem;
+  border: 1px solid var(--maroon);
+  background: transparent;
+  color: var(--maroon-bright);
+  border-radius: 999px;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  justify-self: start;
+}
+.so-viewall:hover { background: var(--maroon); color: var(--cream); }
+.so-preview {
+  position: sticky;
+  top: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--paper);
+}
+.so-preview img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+.so-preview-body {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.9rem 1rem 1.1rem;
+}
+.so-preview-body strong {
+  font-family: var(--serif, "Playfair Display", serif);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+.so-preview-body small { text-transform: capitalize; }
+.so-preview-price {
+  font-family: var(--serif, "Playfair Display", serif);
+  font-size: 1.25rem;
+  color: var(--maroon);
+  margin-bottom: 0.4rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .so-chip:hover, .so-cat:hover { transform: none; }
+}

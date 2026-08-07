@@ -66,10 +66,12 @@ export default function Shop() {
   const sort = params.get("sort") || "";
   const minPrice = params.get("minPrice") || "";
   const maxPrice = params.get("maxPrice") || "";
+  const q = params.get("q") || "";
+  const gender = params.get("gender") || "";
 
   const query = useMemo(
-    () => ({ category, metal, purity, occasion, sort, minPrice, maxPrice }),
-    [category, metal, purity, occasion, sort, minPrice, maxPrice]
+    () => ({ category, metal, purity, occasion, sort, minPrice, maxPrice, q, gender }),
+    [category, metal, purity, occasion, sort, minPrice, maxPrice, q, gender]
   );
 
   useEffect(() => {
@@ -116,13 +118,31 @@ export default function Shop() {
     <>
       <div className="page-band">
         <div className="container">
-          <span className="eyebrow">The Collection</span>
-          <h1>
-            Every piece, <em>priced on today's rate.</em>
-          </h1>
-          <p>
-            Live gold pricing · full break-up on every product · BIS hallmark with HUID
-          </p>
+          {q ? (
+            <>
+              <span className="eyebrow">Discovery</span>
+              <h1>
+                Results for <em>“{q}”.</em>
+              </h1>
+              <p>
+                {data ? `${data.total} piece${data.total === 1 ? "" : "s"} found · ` : ""}
+                priced live on today's rate ·{" "}
+                <button className="link-underline shop-clear-q" onClick={clearAll}>
+                  clear the search ✕
+                </button>
+              </p>
+            </>
+          ) : (
+            <>
+              <span className="eyebrow">The Collection</span>
+              <h1>
+                Every piece, <em>priced on today's rate.</em>
+              </h1>
+              <p>
+                Live gold pricing · full break-up on every product · BIS hallmark with HUID
+              </p>
+            </>
+          )}
         </div>
       </div>
 
