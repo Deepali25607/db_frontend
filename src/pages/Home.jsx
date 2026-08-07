@@ -195,7 +195,6 @@ export default function Home() {
             <h2 className="section-title">
               Shop by <em>category.</em>
             </h2>
-            <p className="swipe-hint" aria-hidden>‹ swipe sideways ›</p>
           </Reveal>
           <div className="cat-grid cat-mosaic m-swipe">
             {(categories || Array.from({ length: 5 })).map((c, i) =>

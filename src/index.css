@@ -3839,27 +3839,38 @@ h1, h2, h3, h4 {
 
 @media (max-width: 860px) {
   body {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
   }
+  /* Bluestone-style floating pill — detached from the edges, blurred glass,
+     riding above the page like a native app bar */
   .bottom-nav {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(0.85rem + env(safe-area-inset-bottom));
     z-index: 95;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    background: var(--paper);
-    border-top: 1px solid var(--line-soft);
-    box-shadow: 0 -12px 30px -20px rgba(56, 7, 15, 0.45);
-    padding: 0.5rem 0.3rem calc(0.55rem + env(safe-area-inset-bottom));
+    display: flex;
+    align-items: stretch;
+    gap: 0.15rem;
+    background: color-mix(in srgb, var(--paper) 90%, transparent);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    box-shadow: 0 20px 44px -18px rgba(56, 7, 15, 0.55);
+    padding: 0.45rem 0.7rem;
   }
   .bn-item {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.18rem;
-    font-size: 0.6rem;
+    padding: 0 0.5rem;
+    border: none;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+    font-size: 0.58rem;
     font-weight: 500;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -3919,7 +3930,92 @@ h1, h2, h3, h4 {
   }
   /* the help bubble rides above the bottom bar */
   .help-widget {
-    bottom: calc(4.8rem + env(safe-area-inset-bottom));
+    bottom: calc(5.4rem + env(safe-area-inset-bottom));
+  }
+
+  /* ---- Bluestone-style category mosaic — instead of a swipe row, phones
+     get a woven edge-to-edge photo grid: one tall hero tile, wide and
+     small companions, a full-width finisher. Labels sit quietly in the
+     corner of each photograph, app fashion. */
+  .cat-mosaic.m-swipe {
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    overflow: visible;
+    scroll-snap-type: none;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, min(30vw, 168px));
+    grid-template-areas:
+      "a a b b"
+      "a a c d"
+      "e e f f"
+      "g g g g";
+    gap: 8px;
+    margin-inline: -4vw;
+    padding: 0.2rem 8px 0.2rem;
+  }
+  .cat-mosaic.m-swipe > :nth-child(1) { grid-area: a; }
+  .cat-mosaic.m-swipe > :nth-child(2) { grid-area: b; }
+  .cat-mosaic.m-swipe > :nth-child(3) { grid-area: c; }
+  .cat-mosaic.m-swipe > :nth-child(4) { grid-area: d; }
+  .cat-mosaic.m-swipe > :nth-child(5) { grid-area: e; }
+  .cat-mosaic.m-swipe > :nth-child(6) { grid-area: f; }
+  .cat-mosaic.m-swipe > :nth-child(7) { grid-area: g; }
+  .cat-mosaic.m-swipe > * {
+    height: 100%;
+    scroll-snap-align: none;
+  }
+  .cat-mosaic.m-swipe .cat-card {
+    aspect-ratio: auto;
+    height: 100%;
+    border-radius: 10px;
+  }
+  .cat-mosaic.m-swipe .cat-card::after {
+    background: linear-gradient(to top, rgba(25, 14, 8, 0.72), rgba(25, 14, 8, 0.08) 42%, transparent 58%);
+  }
+  .cat-mosaic.m-swipe .cat-card-label {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.65rem;
+  }
+  .cat-mosaic.m-swipe .cat-card-label h3 {
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+  }
+  .cat-mosaic.m-swipe .cat-card-label p {
+    display: none;
+  }
+  /* the tall hero tile and the full-width finisher can afford larger names */
+  .cat-mosaic.m-swipe > :nth-child(1) .cat-card-label h3,
+  .cat-mosaic.m-swipe > :nth-child(7) .cat-card-label h3 {
+    font-size: 1.25rem;
+  }
+
+  /* the CTA pair above the title crowds a phone — the "View All
+     Collections" button below the mosaic carries that job */
+  .section-cta {
+    display: none;
+  }
+
+  /* ---- Bluestone-style best-seller deck — generous rounded photo cards
+     swiped sideways, name / metal / price set quietly beneath */
+  .product-grid.m-swipe {
+    grid-auto-columns: 76%;
+    gap: 1rem;
+  }
+  .product-grid.m-swipe .product-media {
+    border-radius: 18px;
+    box-shadow: 0 16px 34px -22px rgba(56, 7, 15, 0.5);
+  }
+  .product-grid.m-swipe .product-info {
+    padding: 0.85rem 0.5rem 0;
+  }
+  /* hover affordances don't exist under a thumb */
+  .quick-add {
+    display: none;
+  }
+  .wish-btn {
+    opacity: 1;
+    transform: none;
   }
 }
 
