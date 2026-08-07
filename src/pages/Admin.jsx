@@ -28,10 +28,36 @@ const PERMISSION_DEFINITIONS = [
 ];
 const permDef = (id) => PERMISSION_DEFINITIONS.find((p) => p.id === id) || { id, nav: id, hint: "", color: "#888" };
 
+/* Nav grouping — related modules sit together under a quiet label. */
+const NAV_GROUPS = [
+  ["Business", ["dashboard", "orders", "customers", "catalogue"]],
+  ["Jewellery", ["rates", "schemes", "buyback"]],
+  ["Support", ["enquiries", "appointments", "callbacks", "returns"]],
+  ["Marketing", ["promos", "notifications"]],
+  ["Administration", ["admin-users", "settings"]],
+];
+
 export default function Admin() {
   const [authed, setAuthed] = useState(adminApi.hasKey());
   const [me, setMe] = useState(null); // hash-stripped admin + catalog, from /me
   const [tab, setTab] = useState("dashboard");
+  const [badges, setBadges] = useState({});
+
+  // the storefront wallpaper glows; the back office needs calm — a strong
+  // veil goes over the underlay while /admin is mounted
+  useEffect(() => {
+    document.body.classList.add("admin-calm");
+    return () => document.body.classList.remove("admin-calm");
+  }, []);
+
+  // nav badges: things waiting for a person (best-effort, permission-aware)
+  useEffect(() => {
+    if (!me || !me.admin.permissions.includes("dashboard")) return;
+    adminApi
+      .summary()
+      .then((s) => setBadges({ rates: s.pendingRateProposals, callbacks: s.callbacksNew }))
+      .catch(() => {});
+  }, [me]);
 
   useEffect(() => {
     if (!authed) return;
@@ -72,33 +98,46 @@ export default function Admin() {
             Signed in as {me.admin.master ? "the master key" : `${me.admin.name} (${me.admin.email})`}
           </p>
         </div>
-        <nav className="admin-tabs">
-          {PERMISSION_DEFINITIONS.filter((p) => can(p.id)).map(({ id, nav }) => (
-            <button
-              key={id}
-              className={tab === id ? "active" : ""}
-              onClick={() => setTab(id)}
-            >
-              {nav}
-            </button>
-          ))}
-          <button
-            onClick={() => {
-              adminApi.logout();
-              setAuthed(false);
-              setMe(null);
-            }}
-          >
-            Sign out
-          </button>
-        </nav>
       </header>
+
+      <nav className="admin-nav" aria-label="Admin modules">
+        {NAV_GROUPS.map(([group, ids]) => {
+          const visible = ids.filter((id) => can(id));
+          if (visible.length === 0) return null;
+          return (
+            <div key={group} className="admin-nav-group">
+              <small>{group}</small>
+              <div className="admin-nav-btns">
+                {visible.map((id) => {
+                  const n = badges[id];
+                  return (
+                    <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
+                      {permDef(id).nav}
+                      {n > 0 && <span className="admin-badge">{n}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+        <button
+          className="admin-signout"
+          onClick={() => {
+            adminApi.logout();
+            setAuthed(false);
+            setMe(null);
+          }}
+        >
+          Sign out
+        </button>
+      </nav>
 
       {!can(tab) ? (
         <NoAccess tile={tab} goHome={() => setTab(PERMISSION_DEFINITIONS.find((p) => can(p.id))?.id || "dashboard")} />
       ) : (
         <>
-          {tab === "dashboard" && <Dashboard goTo={setTab} />}
+          {tab === "dashboard" && <Dashboard goTo={setTab} can={can} />}
           {tab === "orders" && <Orders />}
           {tab === "customers" && <Customers />}
           {tab === "rates" && <Rates />}
@@ -3793,26 +3832,177 @@ function AdminUsersPage({ me }) {
 }
 
 /* ---------------------------------------------------------- dashboard */
-function Dashboard({ goTo }) {
+/* One glance = the state of the business. Every widget is permission-aware:
+   fetches that 403 for this admin simply hide their section. */
+const QUICK_ACTIONS = [
+  ["◈", "Update gold rate", "rates"],
+  ["▤", "Orders console", "orders"],
+  ["✚", "Add a piece", "catalogue"],
+  ["％", "Create a coupon", "promos"],
+  ["▧", "Category promotions", "settings"],
+  ["◷", "Appointments", "appointments"],
+  ["✉", "Message log", "notifications"],
+  ["☖", "Manage admins", "admin-users"],
+];
+
+function Dashboard({ goTo, can = () => true }) {
   const [data, setData] = useState(null);
   const [abandoned, setAbandoned] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [rates, setRates] = useState(null);
   const [error, setError] = useState(null);
+  const [loadedAt] = useState(() => new Date());
 
   useEffect(() => {
     adminApi.summary().then(setData).catch((e) => setError(e.message));
     adminApi.abandoned().then(setAbandoned).catch(() => {});
     adminApi.analytics().then(setAnalytics).catch(() => {});
+    adminApi.rates().then(setRates).catch(() => {}); // hidden without the tile
   }, []);
 
   if (error) return <p className="form-error">{error}</p>;
   if (!data) return <div className="skeleton" style={{ height: 300 }} />;
 
+  const byDay = analytics?.byDay || [];
+  const today = byDay[byDay.length - 1];
+  const yesterday = byDay[byDay.length - 2];
+  const deltaPct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
+  const spark = (key) => byDay.map((d, i) => ({ t: i, v: d[key] }));
+  const pendingOrders = Object.entries(data.byStatus || {})
+    .filter(([s]) => !["Delivered", "Cancelled", "Refunded", "Returned"].includes(s))
+    .reduce((n, [, c]) => n + c, 0);
+  const updated = loadedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+  const Delta = ({ now, prev }) => {
+    const d = deltaPct(now, prev);
+    if (d === null) return <small className="muted">vs yesterday —</small>;
+    return (
+      <small className={`rc-delta ${d >= 0 ? "up" : "down"}`}>
+        {d >= 0 ? "▲" : "▼"} {Math.abs(d)}% vs yesterday
+      </small>
+    );
+  };
+
+  const lastRateChange = (m, p) => {
+    const h = rates?.history || [];
+    for (let i = h.length - 1; i >= 0; i--) if (h[i].metal === m && h[i].purity === p) return h[i];
+    return null;
+  };
+  const rateSpark = (m, p) => {
+    const pts = (rates?.history || []).filter((h) => h.metal === m && h.purity === p).slice(-10).map((h, i) => ({ t: i, v: h.to }));
+    pts.push({ t: pts.length, v: rates.rates[m][p] });
+    return pts;
+  };
+
+  const actions = QUICK_ACTIONS.filter(([, , tile]) => can(tile));
+
   return (
     <>
+      {/* ---- headline: money and movement first */}
+      <div className="dash-hero">
+        <div className="dash-kpi">
+          <div className="dk-top"><span className="dk-ico">₹</span><label>Today's revenue</label><small>at {updated}</small></div>
+          <span className="dk-value">{formatINR(today?.revenue ?? 0)}</span>
+          <div className="dk-foot">
+            <Delta now={today?.revenue ?? 0} prev={yesterday?.revenue} />
+            {byDay.length > 1 && <Sparkline points={spark("revenue")} color="#b02a45" />}
+          </div>
+        </div>
+        <div className="dash-kpi">
+          <div className="dk-top"><span className="dk-ico">▤</span><label>Today's orders</label><small>at {updated}</small></div>
+          <span className="dk-value">{today?.orders ?? 0}</span>
+          <div className="dk-foot">
+            <Delta now={today?.orders ?? 0} prev={yesterday?.orders} />
+            {byDay.length > 1 && <Sparkline points={spark("orders")} color="#9a721a" />}
+          </div>
+        </div>
+        <div className="dash-kpi" onClick={() => can("orders") && goTo("orders")} role="button" tabIndex={0}>
+          <div className="dk-top"><span className="dk-ico">◷</span><label>Open orders</label><small>to fulfil</small></div>
+          <span className="dk-value">{pendingOrders}</span>
+          <div className="dk-foot"><small className="muted">everything not yet delivered</small></div>
+        </div>
+        <div className="dash-kpi">
+          <div className="dk-top"><span className="dk-ico">◈</span><label>Avg order value</label><small>lifetime</small></div>
+          <span className="dk-value">{analytics ? formatINR(analytics.aov) : "—"}</span>
+          <div className="dk-foot"><small className="muted">{analytics ? `${analytics.buyers} buyers · ${analytics.repeatRatePct}% repeat` : ""}</small></div>
+        </div>
+      </div>
+
+      {/* ---- live market strip (needs the rates tile) */}
+      {rates && (
+        <div className="dash-rates" onClick={() => can("rates") && goTo("rates")} role="button" tabIndex={0}>
+          {[["gold", "24K"], ["gold", "22K"], ["gold", "18K"], ["silver", "925"], ["platinum", "PT950"]].map(([m, p]) => {
+            const v = rates.rates[m]?.[p];
+            if (v === undefined) return null;
+            const chg = lastRateChange(m, p);
+            const pct = chg ? ((chg.to - chg.from) / chg.from) * 100 : null;
+            return (
+              <div className="dash-rate" key={m + p}>
+                <label>{m} {p}</label>
+                <strong>{formatINR(v)}<small>/g</small></strong>
+                {pct === null ? (
+                  <small className="muted">no change yet</small>
+                ) : (
+                  <small className={`rc-delta ${pct >= 0 ? "up" : "down"}`}>
+                    {pct >= 0 ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}% · {new Date(chg.at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  </small>
+                )}
+                <Sparkline points={rateSpark(m, p)} color={pct !== null && pct < 0 ? "#27754c" : "#9a721a"} />
+              </div>
+            );
+          })}
+          <small className="muted dash-rates-note">
+            {rates.updatedAt ? `last published ${fmtDate(rates.updatedAt)}` : "no publish yet"} · open the Rate Console →
+          </small>
+        </div>
+      )}
+
+      {/* ---- quick actions */}
+      {actions.length > 0 && (
+        <div className="dash-actions">
+          {actions.map(([ico, label, tile]) => (
+            <button key={tile} className="dash-act" onClick={() => goTo(tile)}>
+              <span aria-hidden>{ico}</span> {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ---- trend + category mix */}
+      {analytics && byDay.length > 1 && (
+        <div className="dash-row">
+          <section className="rc-card">
+            <div className="rc-cardhead"><h3>Sales trend — last 14 days</h3></div>
+            <RateChart
+              series={[{ key: "₹", color: "#b02a45", points: byDay.map((d) => ({ t: Date.parse(d.day), v: d.revenue })) }]}
+              formatTick={(v) => (v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${Math.round(v)}`)}
+            />
+          </section>
+          <section className="rc-card">
+            <div className="rc-cardhead"><h3>Top categories</h3></div>
+            {analytics.categories.length === 0 ? (
+              <p className="muted">No sales yet.</p>
+            ) : (
+              <div className="dash-cats">
+                {analytics.categories.slice(0, 6).map((c) => {
+                  const max = analytics.categories[0].revenue || 1;
+                  return (
+                    <div key={c.category} className="dash-cat">
+                      <span style={{ textTransform: "capitalize" }}>{c.category}</span>
+                      <div className="dash-cat-bar"><i style={{ width: `${Math.max(4, (c.revenue / max) * 100)}%` }} /></div>
+                      <small>{formatINR(c.revenue)}</small>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
       <div className="kpi-grid">
-        <div className="kpi"><span>{data.orders}</span><label>Orders</label></div>
-        <div className="kpi"><span>{formatINR(data.revenue)}</span><label>Revenue</label></div>
+        <div className="kpi"><span>{data.orders}</span><label>Orders all-time</label></div>
+        <div className="kpi"><span>{formatINR(data.revenue)}</span><label>Revenue all-time</label></div>
         <div className="kpi"><span>{data.skus}</span><label>Live SKUs</label></div>
         <div className="kpi accent" onClick={() => goTo("rates")} role="button" tabIndex={0}>
           <span>{data.pendingRateProposals}</span><label>Rate proposals pending</label>
