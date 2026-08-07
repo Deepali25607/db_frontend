@@ -163,7 +163,7 @@ export default function Header() {
         className={`site-header ${scrolled ? "scrolled" : ""}`}
         style={
           headerBg
-            ? { background: `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${headerBg}") center/cover` }
+            ? { background: `linear-gradient(var(--header-wash), var(--header-wash)), url("${headerBg}") center/cover` }
             : undefined
         }
       >

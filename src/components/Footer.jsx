@@ -63,7 +63,7 @@ export default function Footer() {
       className="site-footer"
       style={
         footerBg
-          ? { background: `linear-gradient(var(--bg-wash), var(--bg-wash)), url("${footerBg}") center/cover` }
+          ? { background: `linear-gradient(var(--header-wash), var(--header-wash)), url("${footerBg}") center/cover` }
           : undefined
       }
     >
