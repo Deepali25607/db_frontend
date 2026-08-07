@@ -3991,8 +3991,9 @@ h1, h2, h3, h4 {
   }
 
   /* the CTA pair above the title crowds a phone — the "View All
-     Collections" button below the mosaic carries that job */
-  .section-cta {
+     Collections" button below the mosaic carries that job (scoped
+     selector: the base .section-cta rule sits later in the sheet) */
+  .section-head .section-cta {
     display: none;
   }
 
