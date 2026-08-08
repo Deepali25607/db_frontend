@@ -5662,3 +5662,49 @@ body.admin-calm.has-bg::before {
   color: var(--gold);
   font-weight: 500;
 }
+
+/* ------------- mobile floating-layer cleanup (≤860px) --------------------
+   Two fixed layers (Help + bottom nav) were fighting the content on phones:
+   the Help pill collided with thumbnails and cards, and page content
+   ghosted through the translucent nav. Help becomes a compact round FAB
+   docked above the nav; the nav glass goes near-solid; the listing hero
+   band shrinks to a chapter head. */
+@media (max-width: 860px) {
+  .help-fab {
+    width: 47px;
+    height: 47px;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 1.15rem;
+  }
+  .help-fab span {
+    display: none;
+  }
+  .help-widget {
+    right: 0.9rem;
+    bottom: calc(6.2rem + env(safe-area-inset-bottom));
+  }
+  .bottom-nav {
+    background: color-mix(in srgb, var(--paper) 97%, transparent);
+    box-shadow:
+      0 18px 40px -16px rgba(56, 7, 15, 0.6),
+      0 2px 10px rgba(56, 7, 15, 0.14);
+  }
+  .page-band {
+    padding: 1.9rem 0 1.6rem;
+  }
+  .page-band h1 {
+    font-size: 1.55rem;
+  }
+  .page-band p {
+    font-size: 0.85rem;
+    padding: 0 1.4rem;
+  }
+  .pdp-info h1 {
+    font-size: 1.55rem;
+  }
+  body {
+    padding-bottom: calc(110px + env(safe-area-inset-bottom));
+  }
+}
