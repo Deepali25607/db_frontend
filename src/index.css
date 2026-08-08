@@ -2152,17 +2152,26 @@ h1, h2, h3, h4 {
   margin: 0;
 }
 
+/* monogram medallion — a jeweller's mark, not a flat app avatar: deep
+   maroon ground, gold keyline bezel with a cream gap ring, serif initial */
 .profile-avatar {
   width: 76px;
   height: 76px;
   border-radius: 50%;
-  background: var(--green);
-  color: var(--cream);
+  background: radial-gradient(circle at 32% 28%, #7d1424, #45090f 74%);
+  color: var(--gold-light, #d9ba70);
   display: grid;
   place-items: center;
   font-family: var(--serif);
-  font-size: 2rem;
+  font-size: 1.9rem;
+  font-weight: 500;
+  line-height: 1;
   flex: none;
+  border: 1px solid rgba(217, 186, 112, 0.6);
+  box-shadow:
+    inset 0 0 0 3px var(--cream),
+    inset 0 0 0 4px rgba(217, 186, 112, 0.55),
+    0 12px 24px -12px rgba(56, 7, 15, 0.55);
 }
 
 .verified-chip {
