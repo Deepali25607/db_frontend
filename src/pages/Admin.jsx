@@ -1670,6 +1670,179 @@ function DeliveryAreaPanel({ config, onSaved }) {
   );
 }
 
+/* Size & weight scaling — per-category %/size-step the customisation engine
+   uses (default 2%), plus a live table showing exactly how one piece's
+   weight and price walk across its size range. */
+function SizeScalingPanel({ config, cats, onSaved }) {
+  const DEFAULT_STEP = 2;
+  const [steps, setSteps] = useState(() => {
+    const m = {};
+    for (const c of cats) {
+      const v = (config.sizeStepPcts || {})[c.key];
+      m[c.key] = v === undefined ? "" : String(v);
+    }
+    return m;
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+
+  // preview: sized pieces only; quotes fetched per size so the prices in the
+  // table are the server's own derivation, not client arithmetic
+  const [sized, setSized] = useState([]);
+  const [slug, setSlug] = useState("");
+  const [preview, setPreview] = useState(null); // {product, cz, rows:[{size,steps,factor,netWeight,price}]}
+
+  useEffect(() => {
+    api.products({}).then((d) => {
+      const list = d.items.filter((p) => (p.sizes || []).length > 1);
+      setSized(list);
+      setSlug((s) => s || list[0]?.slug || "");
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!slug) return;
+    let stale = false;
+    setPreview(null);
+    (async () => {
+      try {
+        const d = await api.product(slug);
+        const cz = d.customization;
+        const sizes = d.product.sizes || [];
+        const baseIdx = sizes.indexOf(cz?.baseSize);
+        const rows = await Promise.all(
+          sizes.map(async (size) => {
+            const q = await api.productQuote(slug, { size });
+            const st = sizes.indexOf(size) - baseIdx;
+            return {
+              size,
+              steps: st,
+              factor: 1 + (st * (cz?.sizeStepPct || 0)) / 100,
+              netWeight: q.netWeight,
+              price: q.price.total,
+            };
+          })
+        );
+        if (!stale) setPreview({ product: d.product, cz, rows });
+      } catch (e) {
+        if (!stale) setError(e.message);
+      }
+    })();
+    return () => { stale = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, note]);
+
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const map = {};
+      for (const [k, v] of Object.entries(steps))
+        if (String(v).trim() !== "") map[k] = Number(v);
+      await adminApi.patchConfig({ sizeStepPcts: map });
+      setNote("Saved — sized pieces re-price immediately on the storefront.");
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 760 }}>
+      {error && <p className="form-error">{error}</p>}
+      {note && <p className="admin-note">{note}</p>}
+      <p className="muted" style={{ fontSize: "0.86rem", marginBottom: "1.1rem" }}>
+        A bigger ring or bangle carries more metal. Each size step away from a
+        piece's anchor size (the <strong>middle</strong> of its listed range —
+        that size is the catalogued weight) moves the metal weight by the
+        percentage below, and the price re-derives from the new weight at
+        today's rate. Blank = the house default of {DEFAULT_STEP}% ·
+        0 = size never changes the price for that category.
+      </p>
+
+      <form onSubmit={save}>
+        <table className="admin-table" style={{ marginBottom: "1rem" }}>
+          <thead>
+            <tr><th>Category</th><th>Weight change per size step</th></tr>
+          </thead>
+          <tbody>
+            {cats.map((c) => (
+              <tr key={c.key}>
+                <td style={{ textTransform: "capitalize" }}>{c.label || c.key}</td>
+                <td>
+                  <input
+                    inputMode="decimal"
+                    value={steps[c.key] ?? ""}
+                    onChange={(e) =>
+                      setSteps((s) => ({ ...s, [c.key]: e.target.value.replace(/[^\d.]/g, "") }))
+                    }
+                    placeholder={`${DEFAULT_STEP} (default)`}
+                    aria-label={`Weight step percent for ${c.key}`}
+                    style={{ width: 110, padding: "0.4rem 0.6rem", borderRadius: 8, border: "1px solid var(--line)", background: "var(--cream)" }}
+                  />{" "}
+                  <span className="muted" style={{ fontSize: "0.8rem" }}>% per step (0–10)</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button className="btn btn-maroon" disabled={busy}>
+          {busy ? "Saving…" : "Save scaling"}
+        </button>
+      </form>
+
+      <h4 className="admin-subhead" style={{ marginTop: "2rem" }}>See the calculation, piece by piece</h4>
+      <div className="field" style={{ maxWidth: 380 }}>
+        <label>Piece</label>
+        <select value={slug} onChange={(e) => setSlug(e.target.value)}>
+          {sized.map((p) => (
+            <option key={p.slug} value={p.slug}>{p.name} ({p.category})</option>
+          ))}
+        </select>
+      </div>
+      {!preview ? (
+        <div className="skeleton" style={{ height: 180 }} />
+      ) : (
+        <>
+          <p className="muted" style={{ fontSize: "0.82rem" }}>
+            {preview.product.sizeLabel || "Size"} anchor <strong>{preview.cz?.baseSize}</strong> ·
+            catalogued net weight <strong>{preview.product.metal.netWeight} g</strong> ·
+            scaling <strong>{preview.cz?.sizeStepPct}% per step</strong> — prices below are the
+            server's live derivation at today's rate.
+          </p>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>{preview.product.sizeLabel || "Size"}</th>
+                <th>Steps from anchor</th>
+                <th>Weight factor</th>
+                <th>Net weight</th>
+                <th>Price today</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.rows.map((r) => (
+                <tr key={r.size} style={r.steps === 0 ? { background: "color-mix(in srgb, var(--gold) 12%, transparent)" } : undefined}>
+                  <td>{r.size}{r.steps === 0 ? " ★" : ""}</td>
+                  <td>{r.steps > 0 ? `+${r.steps}` : r.steps}</td>
+                  <td>×{r.factor.toFixed(2)}</td>
+                  <td>{r.netWeight} g</td>
+                  <td>{formatINR(r.price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* Category promotions — sale-banner images marquee-ing under the homepage
    hero, each linked to a category listing. Disable a row to end a sale
    without losing the upload; ▲▼ set the on-screen order. */
@@ -2423,6 +2596,16 @@ function Settings() {
         : "…",
     },
     {
+      key: "sizescale",
+      glyph: "⚖",
+      title: "Size & weight scaling",
+      desc: "How much metal weight one size step adds per category, with a live per-piece calculation table.",
+      chip: (() => {
+        const n = Object.keys(data.config.sizeStepPcts || {}).length;
+        return n ? `${n} categor${n > 1 ? "ies" : "y"} customised` : "2% per step everywhere";
+      })(),
+    },
+    {
       key: "hero",
       glyph: "▶",
       title: "Homepage hero media",
@@ -2470,6 +2653,7 @@ function Settings() {
         {view === "goldplans" && <SchemeVariantsPanel onSaved={refresh} />}
         {view === "catpromo" && <CategoryPromoPanel onSaved={refresh} />}
         {view === "catbanners" && <CategoryBannersPanel onSaved={refresh} />}
+        {view === "sizescale" && <SizeScalingPanel config={data.config} cats={cats || []} onSaved={refresh} />}
         {view === "appearance" && <AppearancePanel onSaved={refresh} />}
         {view === "headerfooter" && <HeaderFooterPanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}
