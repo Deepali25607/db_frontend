@@ -5661,6 +5661,9 @@ function Catalogue() {
 function Schemes() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [q, setQ] = useState("");
+  const [plan, setPlan] = useState("");
+  const [status, setStatus] = useState("");
 
   useEffect(() => {
     adminApi.schemes().then(setData).catch((e) => setError(e.message));
@@ -5668,6 +5671,19 @@ function Schemes() {
 
   if (error) return <p className="form-error">{error}</p>;
   if (!data) return <div className="skeleton" style={{ height: 300 }} />;
+
+  const plans = [...new Set(data.schemes.map((s) => s.variantName))];
+  const statuses = [...new Set(data.schemes.map((s) => s.status))];
+  const needle = q.trim().toLowerCase();
+  const rows = data.schemes.filter((s) => {
+    if (plan && s.variantName !== plan) return false;
+    if (status && s.status !== status) return false;
+    if (!needle) return true;
+    return [s.customer.name, s.customer.phone, s.customer.email, s.customer.pan, s.id].some(
+      (v) => String(v || "").toLowerCase().includes(needle)
+    );
+  });
+  const hasFilters = needle || plan || status;
 
   return (
     <>
@@ -5680,27 +5696,74 @@ function Schemes() {
       </div>
 
       <h3 className="admin-subhead">Scheme ledger</h3>
-      {data.schemes.length === 0 ? (
-        <p className="muted">No enrolments yet.</p>
-      ) : (
-        <table className="admin-table">
-          <thead>
-            <tr><th>Scheme</th><th>Customer</th><th>Monthly</th><th>Paid</th><th>Grams</th><th>Value today</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {data.schemes.map((s) => (
-              <tr key={s.id}>
-                <td>{s.variantName}<small>{s.id}</small></td>
-                <td>{s.customer.name}<small>{s.customer.phone}{s.customer.pan ? ` · PAN ${s.customer.pan}` : ""}</small></td>
-                <td>{formatINR(s.monthlyAmount)}</td>
-                <td>{s.paidCount}/{s.tenureMonths} · {formatINR(s.totalPaid)}</td>
-                <td>{s.gramsAccrued} g</td>
-                <td>{formatINR(s.currentValue)}</td>
-                <td><span className="status-pill">{s.status}</span></td>
-              </tr>
+      {data.schemes.length > 0 && (
+        <div className="od-filterbar" style={{ maxWidth: 760 }}>
+          <input
+            placeholder="Search name / mobile / scheme ID / PAN…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Search schemes"
+          />
+          <select value={plan} onChange={(e) => setPlan(e.target.value)} aria-label="Filter by plan">
+            <option value="">All plans</option>
+            {plans.map((p) => (
+              <option key={p}>{p}</option>
             ))}
-          </tbody>
-        </table>
+          </select>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
+            <option value="">All statuses</option>
+            {statuses.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <p className="muted">
+          {data.schemes.length === 0 ? (
+            "No enrolments yet."
+          ) : (
+            <>
+              No schemes match —{" "}
+              <button className="link-underline" onClick={() => { setQ(""); setPlan(""); setStatus(""); }}>
+                clear the filters
+              </button>
+              .
+            </>
+          )}
+        </p>
+      ) : (
+        <>
+          <table className="admin-table">
+            <thead>
+              <tr><th>Scheme</th><th>Customer</th><th>Monthly</th><th>Paid</th><th>Grams</th><th>Value today</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.variantName}<small>{s.id}</small></td>
+                  <td>{s.customer.name}<small>{s.customer.phone}{s.customer.pan ? ` · PAN ${s.customer.pan}` : ""}</small></td>
+                  <td>{formatINR(s.monthlyAmount)}</td>
+                  <td>{s.paidCount}/{s.tenureMonths} · {formatINR(s.totalPaid)}</td>
+                  <td>{s.gramsAccrued} g</td>
+                  <td>{formatINR(s.currentValue)}</td>
+                  <td><span className="status-pill">{s.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.6rem" }}>
+            Showing {rows.length} of {data.schemes.length} scheme{data.schemes.length === 1 ? "" : "s"}
+            {hasFilters && (
+              <>
+                {" · "}
+                <button className="link-underline" onClick={() => { setQ(""); setPlan(""); setStatus(""); }}>
+                  clear filters
+                </button>
+              </>
+            )}
+          </p>
+        </>
       )}
     </>
   );
