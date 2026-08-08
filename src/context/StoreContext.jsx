@@ -97,37 +97,43 @@ export function StoreProvider({ children }) {
     showToast._t = window.setTimeout(() => setToast(null), 2600);
   }, []);
 
-  const sameLine = (l, slug, size, engraving) =>
-    l.slug === slug && (l.size || null) === (size || null) && (l.engraving || null) === (engraving || null);
+  // a customised piece (karat / diamond quality) is its own cart line
+  const customKey = (c) => (c ? `${c.purity || ""}|${c.quality || ""}` : "|");
+  const sameLine = (l, slug, size, engraving, custom = null) =>
+    l.slug === slug &&
+    (l.size || null) === (size || null) &&
+    (l.engraving || null) === (engraving || null) &&
+    customKey(l.custom) === customKey(custom);
 
   const addToCart = useCallback(
-    (slug, size = null, qty = 1, engraving = null) => {
+    (slug, size = null, qty = 1, engraving = null, custom = null) => {
+      const clean = custom && (custom.purity || custom.quality) ? custom : null;
       setCart((prev) => {
-        const found = prev.find((l) => sameLine(l, slug, size, engraving));
+        const found = prev.find((l) => sameLine(l, slug, size, engraving, clean));
         if (found) {
           return prev.map((l) =>
             l === found ? { ...l, qty: Math.min(5, l.qty + qty) } : l
           );
         }
-        return [...prev, { slug, size, qty, engraving }];
+        return [...prev, { slug, size, qty, engraving, custom: clean }];
       });
       showToast("Added to your bag");
     },
     [showToast]
   );
 
-  const updateQty = useCallback((slug, size, qty, engraving = null) => {
+  const updateQty = useCallback((slug, size, qty, engraving = null, custom = null) => {
     setCart((prev) =>
       qty <= 0
-        ? prev.filter((l) => !sameLine(l, slug, size, engraving))
+        ? prev.filter((l) => !sameLine(l, slug, size, engraving, custom))
         : prev.map((l) =>
-            sameLine(l, slug, size, engraving) ? { ...l, qty: Math.min(5, qty) } : l
+            sameLine(l, slug, size, engraving, custom) ? { ...l, qty: Math.min(5, qty) } : l
           )
     );
   }, []);
 
-  const removeFromCart = useCallback((slug, size, engraving = null) => {
-    setCart((prev) => prev.filter((l) => !sameLine(l, slug, size, engraving)));
+  const removeFromCart = useCallback((slug, size, engraving = null, custom = null) => {
+    setCart((prev) => prev.filter((l) => !sameLine(l, slug, size, engraving, custom)));
   }, []);
 
   const clearCart = useCallback(() => setCart([]), []);

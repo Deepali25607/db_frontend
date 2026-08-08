@@ -5578,3 +5578,87 @@ body.admin-calm.has-bg::before {
     gap: 0;
   }
 }
+
+/* ------------- PDP customisation (karat / diamond quality / size) -------- */
+.pdp-custom {
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line-soft));
+  background: color-mix(in srgb, var(--gold) 9%, var(--paper));
+  border-radius: 16px;
+  margin-bottom: 1.4rem;
+  overflow: hidden;
+}
+.pdp-custom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.85rem 1.15rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  color: var(--ink);
+}
+.pdp-custom-toggle {
+  font-family: var(--sans, inherit);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+}
+.pdp-custom-body {
+  padding: 0 1.15rem 1.05rem;
+  display: grid;
+  gap: 0.85rem;
+}
+.pdp-custom-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.8rem;
+}
+.pdp-custom-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 108px;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft, var(--muted, #6b6258));
+}
+.pdp-custom-label svg { width: 14px; height: 14px; }
+.pdp-custom-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.pdp-custom-opt {
+  padding: 0.42rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.22s ease, background-color 0.22s ease, color 0.22s ease;
+}
+.pdp-custom-opt:hover { border-color: var(--gold); }
+.pdp-custom-opt.active {
+  border-color: var(--maroon);
+  background: var(--maroon);
+  color: var(--cream, #fff);
+}
+.pdp-custom-note {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--ink-soft, var(--muted, #6b6258));
+}
+.cart-variant {
+  color: var(--gold);
+  font-weight: 500;
+}

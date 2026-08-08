@@ -4602,6 +4602,7 @@ function OrderDrawer({ order: o, onClose, onMove, busy }) {
                 <small className="muted">
                   {l.qty} × {formatINR(l.unitPrice)}
                   {l.size ? ` · size ${l.size}` : ""}
+                  {l.variantNote ? ` · ${l.variantNote}` : ""}
                   {l.engraving ? ` · engraved “${l.engraving}”` : ""}
                 </small>
               </div>

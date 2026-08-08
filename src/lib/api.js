@@ -22,6 +22,13 @@ export const api = {
     return request(`/api/products${qs ? `?${qs}` : ""}`);
   },
   product: (slug) => request(`/api/products/${slug}`),
+  // live server-side variant pricing (karat / diamond quality / size)
+  productQuote: (slug, sel = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(sel).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    ).toString();
+    return request(`/api/products/${slug}/quote${qs ? `?${qs}` : ""}`);
+  },
   pincode: (pin) => request(`/api/pincode/${pin}`),
   placeOrder: (payload) =>
     request("/api/orders", {

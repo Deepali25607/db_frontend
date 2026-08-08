@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 import Reveal from "../components/Reveal";
-import { HeartIcon, ShieldIcon, WhatsAppIcon } from "../components/Icons";
+import { GemIcon, HeartIcon, ShieldIcon, WhatsAppIcon } from "../components/Icons";
 import { useStore } from "../context/StoreContext";
 import { api } from "../lib/api";
 import { formatINR, formatINRPaise, metalDisplayName, metalLine, purityDisplay } from "../lib/format";
@@ -268,6 +268,11 @@ export default function Product() {
   const [engraving, setEngraving] = useState("");
   const [recent, setRecent] = useState([]);
 
+  // customisation (karat / diamond quality) — priced live by the server
+  const [custom, setCustom] = useState({ purity: null, quality: null });
+  const [quote, setQuote] = useState(null);
+  const [czOpen, setCzOpen] = useState(true);
+
   useEffect(() => {
     setData(null);
     setError(null);
@@ -276,6 +281,8 @@ export default function Product() {
     setPinResult(null);
     setReviews(null);
     setEngraving("");
+    setCustom({ purity: null, quality: null });
+    setQuote(null);
     api
       .product(slug)
       .then(setData)
@@ -296,6 +303,30 @@ export default function Product() {
   useLiveRefresh(() => {
     api.product(slug).then((d) => setData((prev) => (prev ? d : prev))).catch(() => {});
   }, [slug]);
+
+  // any non-default selection asks the server for a fresh derived price —
+  // the client never computes jewellery prices itself (BRD 7.2)
+  useEffect(() => {
+    const czd = data?.customization;
+    if (!czd) {
+      setQuote(null);
+      return;
+    }
+    const nonDefault =
+      (custom.purity && custom.purity !== czd.basePurity) ||
+      (custom.quality && czd.diamond && custom.quality !== czd.diamond.base) ||
+      (size && czd.sizeStepPct > 0 && size !== czd.baseSize);
+    if (!nonDefault) {
+      setQuote(null);
+      return;
+    }
+    let stale = false;
+    api
+      .productQuote(slug, { purity: custom.purity, quality: custom.quality, size })
+      .then((q) => { if (!stale) setQuote(q); })
+      .catch(() => { if (!stale) setQuote(null); });
+    return () => { stale = true; };
+  }, [slug, data, custom, size]);
 
   const [recentProducts, setRecentProducts] = useState([]);
   useEffect(() => {
@@ -375,7 +406,11 @@ export default function Product() {
   }
 
   const { product, related } = data;
-  const { price } = product;
+  const cz = data.customization;
+  // a live variant quote overrides the catalogued price everywhere below
+  const price = quote?.price || product.price;
+  const effPurity = custom.purity || product.metal.purity;
+  const effWeight = quote?.netWeight ?? product.metal.netWeight;
   const wished = wishlist.includes(product.slug);
   const needsSize = product.sizes && product.sizes.length > 0;
   const emiMonths = config?.emiMonths || 12;
@@ -410,7 +445,13 @@ export default function Product() {
       showToast(`Please choose a ${product.sizeLabel.toLowerCase()}`);
       return;
     }
-    addToCart(product.slug, size, 1, engraving.trim() || null);
+    addToCart(
+      product.slug,
+      size,
+      1,
+      engraving.trim() || null,
+      custom.purity || custom.quality ? custom : null
+    );
   };
 
   return (
@@ -464,7 +505,7 @@ export default function Product() {
             const segments = [
               (config?.pdpShowGstNote ?? 1) ? "Inclusive of GST" : null,
               (config?.pdpShowRateNote ?? 1)
-                ? `computed at today's ${product.metal.purity} rate of ${formatINR(price.metalRatePerGram)}/g`
+                ? `computed at today's ${effPurity} rate of ${formatINR(price.metalRatePerGram)}/g`
                 : null,
               (config?.pdpShowLockNote ?? 1)
                 ? `price locked for ${config?.priceLockMinutes ?? 30} min once in bag`
@@ -497,6 +538,80 @@ export default function Product() {
             </span>
           </div>
 
+          {/* customise: karat / diamond quality — every option re-priced by the server */}
+          {cz && (cz.purities.length > 1 || cz.diamond) && (
+            <div className="pdp-custom">
+              <button
+                type="button"
+                className="pdp-custom-head"
+                onClick={() => setCzOpen((o) => !o)}
+                aria-expanded={czOpen}
+              >
+                <span>Customise this piece</span>
+                <span className="pdp-custom-toggle">{czOpen ? "Hide −" : "Show +"}</span>
+              </button>
+              {czOpen && (
+                <div className="pdp-custom-body">
+                  {cz.purities.length > 1 && (
+                    <div className="pdp-custom-row">
+                      <span className="pdp-custom-label">
+                        {(product.metal.colour || "").trim()} gold
+                      </span>
+                      <div className="pdp-custom-opts">
+                        {cz.purities.map((p) => {
+                          const active = effPurity === p.key;
+                          return (
+                            <button
+                              key={p.key}
+                              type="button"
+                              className={`pdp-custom-opt${active ? " active" : ""}`}
+                              onClick={() =>
+                                setCustom((c) => ({ ...c, purity: p.key === cz.basePurity ? null : p.key }))
+                              }
+                            >
+                              {p.key.replace("K", " Kt")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {cz.diamond && (
+                    <div className="pdp-custom-row">
+                      <span className="pdp-custom-label">
+                        <GemIcon /> Diamond
+                      </span>
+                      <div className="pdp-custom-opts">
+                        {cz.diamond.options.map((o) => {
+                          const active = (custom.quality || cz.diamond.base) === o.key;
+                          return (
+                            <button
+                              key={o.key}
+                              type="button"
+                              className={`pdp-custom-opt${active ? " active" : ""}`}
+                              onClick={() =>
+                                setCustom((c) => ({ ...c, quality: o.key === cz.diamond.base ? null : o.key }))
+                              }
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <p className="pdp-custom-note">
+                    {quote?.note
+                      ? `Configured: ${quote.note} — priced live at today's rate`
+                      : "Every option re-prices instantly at today's rate"}
+                    {cz.sizeStepPct > 0 &&
+                      ` · ${(product.sizeLabel || "size").toLowerCase()} adjusts the metal weight`}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* price break-up (BRD FR-PRC-05) */}
           <details className="breakup">
             <summary>Full price break-up</summary>
@@ -511,7 +626,7 @@ export default function Product() {
                 </div>
                 <div>
                   <dt>Purity</dt>
-                  <dd>{purityDisplay(product.metal.purity)}</dd>
+                  <dd>{purityDisplay(effPurity)}</dd>
                 </div>
                 <div>
                   <dt>Rate</dt>
@@ -519,7 +634,7 @@ export default function Product() {
                 </div>
                 <div>
                   <dt>Weight</dt>
-                  <dd>{product.metal.netWeight} g</dd>
+                  <dd>{effWeight} g</dd>
                 </div>
                 <div>
                   <dt>Discount</dt>
@@ -527,7 +642,7 @@ export default function Product() {
                 </div>
                 <div className="pdp-detail-value">
                   <dt>Value</dt>
-                  <dd>{formatINRPaise(product.metal.netWeight * price.metalRatePerGram)}</dd>
+                  <dd>{formatINRPaise(effWeight * price.metalRatePerGram)}</dd>
                 </div>
               </dl>
             </div>

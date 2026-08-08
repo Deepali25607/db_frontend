@@ -4,9 +4,15 @@ import { useStore } from "../context/StoreContext";
 import { accountApi, api } from "../lib/api";
 import { formatINR, metalLine } from "../lib/format";
 
+// a customised or sized line prices differently from the catalogue entry —
+// this key identifies its exact configuration
+const lineKey = (l) =>
+  `${l.slug}|${l.size || ""}|${l.custom?.purity || ""}|${l.custom?.quality || ""}`;
+
 export default function Cart() {
   const { cart, updateQty, removeFromCart, clearCart, config } = useStore();
   const [catalog, setCatalog] = useState(null);
+  const [quotes, setQuotes] = useState({}); // lineKey → server quote
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState(null);
@@ -100,14 +106,34 @@ export default function Cart() {
     if (!catalog) return null;
     return cart
       .map((l) => ({ ...l, product: catalog[l.slug] }))
-      .filter((l) => l.product);
-  }, [cart, catalog]);
+      .filter((l) => l.product)
+      .map((l) => ({ ...l, quote: quotes[lineKey(l)] || null }));
+  }, [cart, catalog, quotes]);
+
+  // customised / sized lines are re-priced by the server (same engine that
+  // will bill the order) — the catalogue price only covers the stock piece
+  useEffect(() => {
+    for (const l of cart) {
+      if (!l.custom && !l.size) continue;
+      const key = lineKey(l);
+      if (quotes[key]) continue;
+      api
+        .productQuote(l.slug, {
+          purity: l.custom?.purity,
+          quality: l.custom?.quality,
+          size: l.size,
+        })
+        .then((q) => setQuotes((prev) => ({ ...prev, [key]: q })))
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart]);
 
   const totals = useMemo(() => {
     if (!lines) return null;
     let metal = 0, stones = 0, making = 0, other = 0, gst = 0, total = 0;
     for (const l of lines) {
-      const p = l.product.price;
+      const p = l.quote?.price || l.product.price;
       metal += p.metalValue * l.qty;
       stones += p.stoneValue * l.qty;
       making += p.makingCharges * l.qty;
@@ -170,7 +196,11 @@ export default function Cart() {
 
   const orderPayload = (location) => ({
     location: location || undefined,
-    items: cart.map(({ slug, size, qty, engraving }) => ({ slug, size, qty, engraving })),
+    items: cart.map(({ slug, size, qty, engraving, custom }) => ({
+      slug, size, qty, engraving,
+      purity: custom?.purity || undefined,
+      quality: custom?.quality || undefined,
+    })),
     coupon: coupon?.code || undefined,
     redeemPoints: pointsValue > 0 ? pointsValue : undefined,
     referralCode: referralInput.trim() || undefined,
@@ -335,7 +365,7 @@ export default function Cart() {
         <div className="cart-lines">
           {(lines || Array.from({ length: 2 })).map((l, i) =>
             l ? (
-              <div className="cart-line" key={`${l.slug}-${l.size}-${l.engraving || ""}`}>
+              <div className="cart-line" key={lineKey(l) + (l.engraving || "")}>
                 <Link to={`/product/${l.slug}`}>
                   <img src={l.product.images[0]} alt={l.product.name} />
                 </Link>
@@ -348,17 +378,20 @@ export default function Cart() {
                     {l.size ? ` · ${l.product.sizeLabel}: ${l.size}` : ""}
                     {l.engraving ? ` · engraved “${l.engraving}”` : ""}
                   </p>
+                  {l.quote?.note && (
+                    <p className="meta cart-variant">Customised: {l.quote.note}</p>
+                  )}
                   <div className="qty-stepper">
                     <button
                       aria-label="Decrease quantity"
-                      onClick={() => updateQty(l.slug, l.size, l.qty - 1, l.engraving || null)}
+                      onClick={() => updateQty(l.slug, l.size, l.qty - 1, l.engraving || null, l.custom || null)}
                     >
                       −
                     </button>
                     <span>{l.qty}</span>
                     <button
                       aria-label="Increase quantity"
-                      onClick={() => updateQty(l.slug, l.size, l.qty + 1, l.engraving || null)}
+                      onClick={() => updateQty(l.slug, l.size, l.qty + 1, l.engraving || null, l.custom || null)}
                     >
                       +
                     </button>
@@ -366,11 +399,11 @@ export default function Cart() {
                 </div>
                 <div className="line-right">
                   <span className="line-price">
-                    {formatINR(l.product.price.total * l.qty)}
+                    {formatINR((l.quote?.price || l.product.price).total * l.qty)}
                   </span>
                   <button
                     className="remove-btn"
-                    onClick={() => removeFromCart(l.slug, l.size, l.engraving || null)}
+                    onClick={() => removeFromCart(l.slug, l.size, l.engraving || null, l.custom || null)}
                   >
                     Remove
                   </button>

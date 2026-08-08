@@ -275,7 +275,8 @@ export default function Track() {
                       <span className="tl-info">
                         <Link to={`/product/${l.slug}`} className="tl-name">{l.name}</Link>
                         <span className="muted">
-                          {l.size ? `Size ${l.size} · ` : ""}Qty {l.qty}
+                          {l.size ? `Size ${l.size} · ` : ""}
+                          {l.variantNote ? `${l.variantNote} · ` : ""}Qty {l.qty}
                         </span>
                       </span>
                       <span className="tl-right">
