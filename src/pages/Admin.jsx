@@ -5039,20 +5039,87 @@ function OccasionChips({ value, onChange }) {
   );
 }
 
+/* Diamond quality bands (must mirror the server's diamondGradeOf): the
+   clarity/colour stored on the stone anchor which band the catalogued
+   per-carat rate belongs to — the PDP customisation pills price relative
+   to it. The admin picks a band; we store a representative clarity+colour. */
+const QUALITY_BANDS = [
+  { key: "SI-IJ", label: "SI IJ", clarity: "SI1", colour: "I" },
+  { key: "SI-GH", label: "SI GH", clarity: "SI1", colour: "G" },
+  { key: "VS-GH", label: "VS GH", clarity: "VS1", colour: "G" },
+  { key: "VVS-EF", label: "VVS EF", clarity: "VVS1", colour: "E" },
+];
+function bandOf(clarity, colour) {
+  const c = String(clarity || "VS").toUpperCase();
+  const col = String(colour || "G").toUpperCase()[0];
+  if (/^(VVS|IF|FL)/.test(c)) return "VVS-EF";
+  if (c.startsWith("VS")) return "VS-GH";
+  return "EFGH".includes(col) ? "SI-GH" : "SI-IJ";
+}
+
+const BLANK_PRODUCT_FORM = {
+  name: "", slug: "", category: "rings", metalType: "gold", purity: "22K",
+  colour: "yellow", grossWeight: "", netWeight: "", makingBasis: "perGram",
+  makingValue: "", imageUrl: "", extraImages: "", sizes: "", stock: "6", description: "",
+  collection: "", gender: "women", sizeLabel: "", occasion: ["daily"],
+  stoneType: "", stoneCarat: "", stoneRate: "", stoneClarity: "", stoneColour: "",
+  stoneCertBody: "", stoneCertNo: "",
+  hallmarkingCharge: "45", certificationCharge: "", huid: "", leadTimeDays: "",
+  engravable: false, featured: false,
+};
+
+// raw stored product → form values (edit mode)
+function productToForm(p) {
+  const s = (p.stones || [])[0];
+  return {
+    ...BLANK_PRODUCT_FORM,
+    name: p.name, slug: p.slug, category: p.category,
+    metalType: p.metal.type, purity: p.metal.purity, colour: p.metal.colour || "yellow",
+    grossWeight: String(p.metal.grossWeight), netWeight: String(p.metal.netWeight),
+    makingBasis: p.making.basis, makingValue: String(p.making.value),
+    sizes: (p.sizes || []).join(", "), sizeLabel: p.sizeLabel || "",
+    description: p.description || "", collection: p.collection || "",
+    gender: p.gender || "women", occasion: p.occasion || ["daily"],
+    stoneType: s?.type || "", stoneCarat: s ? String(s.caratTotal) : "",
+    stoneRate: s ? String(s.ratePerCarat) : "",
+    stoneClarity: s?.clarity || "", stoneColour: s?.colour || "",
+    stoneCertBody: s?.certBody || "", stoneCertNo: s?.certNo || "",
+    hallmarkingCharge: String(p.otherCharges?.hallmarking ?? 45),
+    certificationCharge: p.otherCharges?.certification ? String(p.otherCharges.certification) : "",
+    huid: p.huid || "", leadTimeDays: p.leadTimeDays ? String(p.leadTimeDays) : "",
+    engravable: !!p.engravable, featured: !!p.featured,
+  };
+}
+
 function AddProduct({ onCreated, onError }) {
   const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button className="btn btn-maroon" style={{ marginBottom: "1.4rem" }} onClick={() => setOpen(true)}>
+        + Add a piece
+      </button>
+    );
+  return (
+    <ProductForm
+      onCancel={() => setOpen(false)}
+      onSaved={(r) => {
+        setOpen(false);
+        onCreated(r);
+      }}
+      onError={onError}
+    />
+  );
+}
+
+// One form, two modes: no `initial` creates; `initial` (the raw stored
+// product) edits in place — slug immutable, images/occasions/stock keep
+// their dedicated inline editors.
+function ProductForm({ initial, onSaved, onCancel, onError }) {
+  const edit = !!initial;
   const [cats, setCats] = useState([]);
   const [busy, setBusy] = useState(false);
-  const blank = {
-    name: "", slug: "", category: "rings", metalType: "gold", purity: "22K",
-    colour: "yellow", grossWeight: "", netWeight: "", makingBasis: "perGram",
-    makingValue: "", imageUrl: "", extraImages: "", sizes: "", stock: "6", description: "",
-    collection: "", gender: "women", sizeLabel: "", occasion: ["daily"],
-    stoneType: "", stoneCarat: "", stoneRate: "", stoneCertBody: "", stoneCertNo: "",
-    hallmarkingCharge: "45", certificationCharge: "", huid: "", leadTimeDays: "",
-    engravable: false, featured: false,
-  };
-  const [form, setForm] = useState(blank);
+  const blank = BLANK_PRODUCT_FORM;
+  const [form, setForm] = useState(edit ? productToForm(initial) : blank);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -5099,9 +5166,19 @@ function AddProduct({ onCreated, onError }) {
     setBusy(true);
     onError(null);
     try {
-      const res = await adminApi.createProduct({
+      const stone = form.stoneType
+        ? {
+            type: form.stoneType,
+            caratTotal: Number(form.stoneCarat),
+            ratePerCarat: Number(form.stoneRate),
+            clarity: form.stoneClarity || undefined,
+            colour: form.stoneColour || undefined,
+            certBody: form.stoneCertBody || undefined,
+            certNo: form.stoneCertNo || undefined,
+          }
+        : undefined;
+      const common = {
         name: form.name,
-        slug: form.slug,
         category: form.category,
         metalType: form.metalType,
         purity: form.purity,
@@ -5109,26 +5186,10 @@ function AddProduct({ onCreated, onError }) {
         grossWeight: Number(form.grossWeight),
         netWeight: Number(form.netWeight),
         making: { basis: form.makingBasis, value: Number(form.makingValue) },
-        imageUrl: form.imageUrl || undefined,
-        extraImages: form.extraImages
-          ? form.extraImages.split(";").map((t) => t.trim()).filter(Boolean)
-          : undefined,
         sizes: form.sizes,
-        stock: form.stock === "" ? undefined : Number(form.stock),
-        description: form.description,
         collection: form.collection || undefined,
         gender: form.gender,
-        occasion: form.occasion,
         sizeLabel: form.sizeLabel || undefined,
-        stone: form.stoneType
-          ? {
-              type: form.stoneType,
-              caratTotal: Number(form.stoneCarat),
-              ratePerCarat: Number(form.stoneRate),
-              certBody: form.stoneCertBody || undefined,
-              certNo: form.stoneCertNo || undefined,
-            }
-          : undefined,
         hallmarkingCharge: form.hallmarkingCharge === "" ? undefined : Number(form.hallmarkingCharge),
         certificationCharge: form.certificationCharge === "" ? undefined : Number(form.certificationCharge),
         huid: form.huid || undefined,
@@ -5136,23 +5197,38 @@ function AddProduct({ onCreated, onError }) {
         madeToOrder: Number(form.leadTimeDays) > 0,
         engravable: form.engravable,
         featured: form.featured,
-      });
-      setForm(blank);
-      setOpen(false);
-      onCreated(res);
+      };
+      let res;
+      if (edit) {
+        res = await adminApi.patchProduct(initial.slug, {
+          ...common,
+          // in edit, a cleared stone field genuinely removes the stone
+          stone: stone || null,
+          ...(form.description.trim() ? { description: form.description } : {}),
+        });
+        res = { ...res, slug: initial.slug };
+      } else {
+        res = await adminApi.createProduct({
+          ...common,
+          slug: form.slug,
+          stone,
+          description: form.description,
+          occasion: form.occasion,
+          imageUrl: form.imageUrl || undefined,
+          extraImages: form.extraImages
+            ? form.extraImages.split(";").map((t) => t.trim()).filter(Boolean)
+            : undefined,
+          stock: form.stock === "" ? undefined : Number(form.stock),
+        });
+        setForm(blank);
+      }
+      onSaved(res);
     } catch (err) {
       onError(err.message);
     } finally {
       setBusy(false);
     }
   };
-
-  if (!open)
-    return (
-      <button className="btn btn-maroon" style={{ marginBottom: "1.4rem" }} onClick={() => setOpen(true)}>
-        + Add a piece
-      </button>
-    );
 
   return (
     <form className="checkout-form" onSubmit={submit} style={{ marginBottom: "2rem", maxWidth: 720 }}>
@@ -5162,8 +5238,8 @@ function AddProduct({ onCreated, onError }) {
           <input required value={form.name} onChange={set("name")} placeholder="Kaveri Gold Band" />
         </div>
         <div className="field">
-          <label>Slug (optional — derived from name)</label>
-          <input value={form.slug} onChange={set("slug")} placeholder="kaveri-gold-band" />
+          <label>{edit ? "Slug (fixed)" : "Slug (optional — derived from name)"}</label>
+          <input value={form.slug} onChange={set("slug")} placeholder="kaveri-gold-band" disabled={edit} />
         </div>
       </div>
       <div className="form-row">
@@ -5224,48 +5300,60 @@ function AddProduct({ onCreated, onError }) {
           <label>Making value</label>
           <input required inputMode="numeric" value={form.makingValue} onChange={set("makingValue")} />
         </div>
+        {!edit && (
+          <div className="field">
+            <label>Opening stock</label>
+            <input inputMode="numeric" value={form.stock} onChange={set("stock")} />
+          </div>
+        )}
+      </div>
+      {!edit && (
         <div className="field">
-          <label>Opening stock</label>
-          <input inputMode="numeric" value={form.stock} onChange={set("stock")} />
-        </div>
-      </div>
-      <div className="field">
-        <label>
-          Occasions{" "}
-          <span className="muted" style={{ fontWeight: 400 }}>
-            — where the piece appears in the header menu and shop filters
-          </span>
-        </label>
-        <OccasionChips
-          value={form.occasion}
-          onChange={(occ) => setForm((f) => ({ ...f, occasion: occ }))}
-        />
-      </div>
-      <div className="field">
-        <label>
-          Images{" "}
-          <span className="muted" style={{ fontWeight: 400 }}>
-            — the first is the cover; upload from your computer or paste URLs
-          </span>
-        </label>
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-          <input
-            style={{ flex: "1 1 260px" }}
-            value={form.imageUrl}
-            onChange={set("imageUrl")}
-            placeholder="https://…  (defaults to a house image)"
-          />
-          <label className="btn btn-outline" style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
-            {uploading ? "Uploading…" : "⤒ Upload images…"}
-            <input type="file" accept="image/*" multiple hidden onChange={uploadImages} disabled={uploading} />
+          <label>
+            Occasions{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              — where the piece appears in the header menu and shop filters
+            </span>
           </label>
+          <OccasionChips
+            value={form.occasion}
+            onChange={(occ) => setForm((f) => ({ ...f, occasion: occ }))}
+          />
         </div>
-        <input
-          value={form.extraImages}
-          onChange={set("extraImages")}
-          placeholder="More image URLs, separated by ; (optional)"
-        />
-      </div>
+      )}
+      {!edit && (
+        <div className="field">
+          <label>
+            Images{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              — the first is the cover; upload from your computer or paste URLs
+            </span>
+          </label>
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+            <input
+              style={{ flex: "1 1 260px" }}
+              value={form.imageUrl}
+              onChange={set("imageUrl")}
+              placeholder="https://…  (defaults to a house image)"
+            />
+            <label className="btn btn-outline" style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
+              {uploading ? "Uploading…" : "⤒ Upload images…"}
+              <input type="file" accept="image/*" multiple hidden onChange={uploadImages} disabled={uploading} />
+            </label>
+          </div>
+          <input
+            value={form.extraImages}
+            onChange={set("extraImages")}
+            placeholder="More image URLs, separated by ; (optional)"
+          />
+        </div>
+      )}
+      {edit && (
+        <p className="muted" style={{ fontSize: "0.78rem", margin: "0.2rem 0 0.6rem" }}>
+          Images, occasion tags, stock and publish/feature flags keep their inline
+          editors in the catalogue table — everything else saves from here.
+        </p>
+      )}
       <div className="form-row">
         <div className="field">
           <label>Sizes (comma-separated, optional)</label>
@@ -5314,6 +5402,29 @@ function AddProduct({ onCreated, onError }) {
               <input inputMode="numeric" value={form.stoneRate} onChange={set("stoneRate")} placeholder="180000" />
             </div>
           </div>
+          {form.stoneType.trim().toLowerCase().includes("diamond") && (
+            <div className="field">
+              <label>
+                Diamond quality band{" "}
+                <span className="muted" style={{ fontWeight: 400 }}>
+                  — the rate above is the price OF this band; customers customise
+                  to the other bands and the price re-derives from it
+                </span>
+              </label>
+              <select
+                value={bandOf(form.stoneClarity, form.stoneColour)}
+                onChange={(e) => {
+                  const band = QUALITY_BANDS.find((b) => b.key === e.target.value);
+                  if (band)
+                    setForm((f) => ({ ...f, stoneClarity: band.clarity, stoneColour: band.colour }));
+                }}
+              >
+                {QUALITY_BANDS.map((b) => (
+                  <option key={b.key} value={b.key}>{b.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="form-row">
             <div className="field">
               <label>Cert body</label>
@@ -5367,9 +5478,9 @@ function AddProduct({ onCreated, onError }) {
 
       <div style={{ display: "flex", gap: "0.7rem" }}>
         <button className="btn btn-maroon" disabled={busy}>
-          {busy ? "Creating…" : "Create piece"}
+          {busy ? "Saving…" : edit ? "Save changes" : "Create piece"}
         </button>
-        <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
+        <button type="button" className="btn btn-outline" onClick={onCancel}>
           Cancel
         </button>
       </div>
@@ -5581,6 +5692,8 @@ function Catalogue() {
   const [report, setReport] = useState(null);
   const [imagesFor, setImagesFor] = useState(null); // slug with the images editor open
   const [occFor, setOccFor] = useState(null); // slug with the occasions editor open
+  const [editFor, setEditFor] = useState(null); // {slug, product} with the edit form open
+  const [deleting, setDeleting] = useState(null); // slug awaiting delete confirmation
 
   const refresh = useCallback(() => {
     adminApi.products().then(setItems).catch((e) => setError(e.message));
@@ -5594,6 +5707,30 @@ function Catalogue() {
       await adminApi.patchProduct(slug, { [field]: value });
       setItems((prev) => prev.map((p) => (p.slug === slug ? { ...p, [field]: value } : p)));
       setNote(`${slug}: ${field} → ${value ? "on" : "off"}`);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const openEdit = async (slug) => {
+    setError(null);
+    try {
+      const { product } = await adminApi.getProduct(slug);
+      setEditFor({ slug, product });
+      setImagesFor(null);
+      setOccFor(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const doDelete = async (slug) => {
+    setError(null);
+    try {
+      await adminApi.deleteProduct(slug);
+      setDeleting(null);
+      setNote(`${slug} deleted — past orders and invoices keep their own copies.`);
+      refresh();
     } catch (e) {
       setError(e.message);
     }
@@ -5651,7 +5788,7 @@ function Catalogue() {
       />
       <table className="admin-table">
         <thead>
-          <tr><th>Product</th><th>Category</th><th>Purity</th><th>Net wt</th><th>Making</th><th>Price today</th><th>Stock</th><th>Images</th><th>Occasions</th><th>Published</th><th>Featured</th></tr>
+          <tr><th>Product</th><th>Category</th><th>Purity</th><th>Net wt</th><th>Making</th><th>Price today</th><th>Stock</th><th>Images</th><th>Occasions</th><th>Published</th><th>Featured</th><th>Actions</th></tr>
         </thead>
         <tbody>
           {items.map((p) => (
@@ -5713,10 +5850,63 @@ function Catalogue() {
                     aria-label={`Feature ${p.name}`}
                   />
                 </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <button
+                    className="btn btn-outline"
+                    style={{ padding: "0.3rem 0.8rem", marginRight: "0.4rem" }}
+                    onClick={() => (editFor?.slug === p.slug ? setEditFor(null) : openEdit(p.slug))}
+                    aria-expanded={editFor?.slug === p.slug}
+                  >
+                    {editFor?.slug === p.slug ? "Close" : "✎ Edit"}
+                  </button>
+                  {deleting === p.slug ? (
+                    <>
+                      <button
+                        className="btn btn-maroon"
+                        style={{ padding: "0.3rem 0.8rem", marginRight: "0.3rem" }}
+                        onClick={() => doDelete(p.slug)}
+                      >
+                        Confirm delete
+                      </button>
+                      <button
+                        className="btn btn-outline"
+                        style={{ padding: "0.3rem 0.8rem" }}
+                        onClick={() => setDeleting(null)}
+                      >
+                        Keep
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn btn-outline"
+                      style={{ padding: "0.3rem 0.8rem", color: "var(--maroon-bright, #a02040)" }}
+                      onClick={() => setDeleting(p.slug)}
+                      title="Remove this piece from the catalogue permanently"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </td>
               </tr>
+              {editFor?.slug === p.slug && (
+                <tr>
+                  <td colSpan={12} style={{ background: "var(--paper)" }}>
+                    <ProductForm
+                      initial={editFor.product}
+                      onCancel={() => setEditFor(null)}
+                      onSaved={() => {
+                        setEditFor(null);
+                        setNote(`${p.slug} updated — repriced live on the storefront.`);
+                        refresh();
+                      }}
+                      onError={setError}
+                    />
+                  </td>
+                </tr>
+              )}
               {imagesFor === p.slug && (
                 <tr>
-                  <td colSpan={11} style={{ background: "var(--paper)" }}>
+                  <td colSpan={12} style={{ background: "var(--paper)" }}>
                     <ImagesEditor
                       product={p}
                       onSaved={(n) => {
@@ -5731,7 +5921,7 @@ function Catalogue() {
               )}
               {occFor === p.slug && (
                 <tr>
-                  <td colSpan={11} style={{ background: "var(--paper)" }}>
+                  <td colSpan={12} style={{ background: "var(--paper)" }}>
                     <OccasionsEditor
                       product={p}
                       onSaved={(tags) => {

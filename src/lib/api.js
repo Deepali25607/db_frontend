@@ -284,6 +284,9 @@ export const adminApi = {
       body: JSON.stringify({ checker }),
     }),
   products: () => request("/api/admin/products", { headers: adminHeaders() }),
+  getProduct: (slug) => request(`/api/admin/products/${slug}`, { headers: adminHeaders() }),
+  deleteProduct: (slug) =>
+    request(`/api/admin/products/${slug}`, { method: "DELETE", headers: adminHeaders() }),
   createProduct: (body) =>
     request("/api/admin/products", { method: "POST", headers: adminHeaders(), body: JSON.stringify(body) }),
   patchProduct: (slug, body) =>
