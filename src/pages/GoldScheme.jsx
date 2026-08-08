@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import PaySheet from "../components/PaySheet";
 import Reveal from "../components/Reveal";
+import SchemeCard from "../components/SchemeCard";
 import { useStore } from "../context/StoreContext";
 import { api } from "../lib/api";
 import { formatINR } from "../lib/format";
@@ -78,7 +81,11 @@ function EnrolForm({ variants, rate22 }) {
     acceptTerms: false,
   });
   const [error, setError] = useState(null);
-  const [done, setDone] = useState(null);
+  const [pending, setPending] = useState(null); // enrolled, awaiting first payment
+  const [paying, setPaying] = useState(false); // PaySheet open for the first instalment
+  const [payBusy, setPayBusy] = useState(false);
+  const [payNote, setPayNote] = useState(null);
+  const [done, setDone] = useState(null); // activated scheme view
 
   const variant = variants.find((v) => v.key === form.variant);
   const committed = variant ? Number(form.monthlyAmount || 0) * variant.tenureMonths : 0;
@@ -97,27 +104,83 @@ function EnrolForm({ variants, rate22 }) {
         customer: { name: form.name, phone: form.phone, email: form.email, pan: form.pan },
         acceptTerms: form.acceptTerms,
       });
-      setDone(res);
+      // enrolment reserves the scheme; the first instalment activates it
+      setPending(res);
+      setPaying(true);
+      setPayNote(null);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const payFirst = async (outcome, method) => {
+    setPayBusy(true);
+    setPayNote(null);
+    try {
+      const updated = await api.paySchemeInstalment(pending.id, outcome, method);
+      setPaying(false);
+      setDone(updated);
+    } catch (err) {
+      setPayNote(err.message);
+    } finally {
+      setPayBusy(false);
     }
   };
 
   if (done) {
     return (
       <div className="summary-card" style={{ position: "static" }}>
-        <h3>Enrolled ✓</h3>
+        <h3>Scheme active ✓</h3>
         <p className="muted" style={{ marginBottom: "0.8rem" }}>
           {done.variantName} · {done.id}
         </p>
         <p className="muted" style={{ fontSize: "0.9rem" }}>
-          Your first instalment is due now — find this scheme under “My
-          schemes” with mobile {form.phone} and pay when ready. Maturity{" "}
-          {fmtDate(done.maturityAt)}.
+          First instalment received — {done.gramsAccrued} g added at{" "}
+          {formatINR(done.instalments?.[0]?.rate22K || done.rate22)}/g. Next
+          instalment due {fmtDate(done.nextDueAt)}; maturity {fmtDate(done.maturityAt)}.
+          Track everything under{" "}
+          <Link to="/account" className="link-underline">My Profile → Gold Schemes</Link>{" "}
+          or “My schemes” beside this form.
         </p>
-        <button className="btn btn-maroon" style={{ marginTop: "1.2rem" }} onClick={() => setDone(null)}>
+        <button className="btn btn-maroon" style={{ marginTop: "1.2rem" }} onClick={() => { setDone(null); setPending(null); }}>
           Enrol another
         </button>
+      </div>
+    );
+  }
+
+  if (pending) {
+    return (
+      <div className="summary-card" style={{ position: "static" }}>
+        <h3>Almost there —</h3>
+        <p className="muted" style={{ marginBottom: "0.8rem" }}>
+          {pending.variantName} · {pending.id} · reserved for {form.name}
+        </p>
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Your scheme activates when the first instalment of{" "}
+          <strong>{formatINR(pending.monthlyAmount)}</strong> is paid — the
+          monthly cycle starts from that payment date, and the amount converts
+          to grams at that day's 22K rate.
+        </p>
+        {payNote && <p className="form-error" style={{ marginTop: "0.7rem" }}>{payNote}</p>}
+        <button className="btn btn-maroon" style={{ marginTop: "1.2rem", width: "100%" }} onClick={() => setPaying(true)}>
+          Pay first instalment · {formatINR(pending.monthlyAmount)}
+        </button>
+        <p className="muted" style={{ fontSize: "0.78rem", marginTop: "0.7rem" }}>
+          Not now? The scheme stays reserved — pay any time from “My schemes”
+          or My Profile to activate it.
+        </p>
+        {paying && (
+          <PaySheet
+            amount={pending.monthlyAmount}
+            title={`First instalment · ${pending.variantName} · activates ${pending.id}`}
+            subline={`Converts to gold at today's 22K rate`}
+            busy={payBusy}
+            onPay={(method) => payFirst("success", method)}
+            onFail={(method) => payFirst("failure", method)}
+            onCancel={() => setPaying(false)}
+          />
+        )}
       </div>
     );
   }
@@ -223,11 +286,11 @@ function MySchemes() {
     }
   };
 
-  const pay = async (outcome) => {
+  const pay = async (outcome, method) => {
     setBusy(true);
     setError(null);
     try {
-      await api.paySchemeInstalment(paying.id, outcome);
+      await api.paySchemeInstalment(paying.id, outcome, method);
       setPaying(null);
       await lookup();
     } catch (err) {
@@ -265,63 +328,23 @@ function MySchemes() {
         <p className="muted">No schemes found for that number yet.</p>
       )}
       {(schemes || []).map((s) => (
-        <div key={s.id} className="scheme-status-card">
-          <div className="scheme-status-head">
-            <strong>{s.variantName}</strong>
-            <span className="status-pill">{s.status}</span>
-          </div>
-          <p className="muted" style={{ fontSize: "0.8rem" }}>
-            {s.id} · {formatINR(s.monthlyAmount)}/month · matures {fmtDate(s.maturityAt)}
-          </p>
-          <div className="progress">
-            <div className="progress-bar" style={{ width: `${(s.paidCount / s.tenureMonths) * 100}%` }} />
-          </div>
-          <div className="scheme-stats">
-            <div><span>{s.paidCount}/{s.tenureMonths}</span><label>Instalments</label></div>
-            <div><span>{s.gramsAccrued} g</span><label>Gold accrued</label></div>
-            <div><span>{formatINR(s.currentValue)}</span><label>Value today</label></div>
-          </div>
-          {s.status === "active" && (
-            <button className="btn btn-maroon" style={{ width: "100%" }} onClick={() => setPaying(s)}>
-              Pay instalment {s.paidCount + 1} · {formatINR(s.monthlyAmount)}
-            </button>
-          )}
-          {s.status === "matured" && (
-            <button className="btn btn-green" style={{ width: "100%" }} onClick={() => redeem(s.id)}>
-              Redeem {s.gramsAccrued} g against a purchase
-            </button>
-          )}
-          {s.status === "redeemed" && s.redemption && (
-            <p className="admin-note" style={{ marginBottom: 0 }}>
-              Redeemed {s.redemption.grams} g ({formatINR(s.redemption.value)}) · code{" "}
-              <strong>{s.redemption.code}</strong> · {s.redemption.bonus}
-            </p>
-          )}
-        </div>
+        <SchemeCard key={s.id} scheme={s} onPay={setPaying} onRedeem={(v) => redeem(v.id)} />
       ))}
 
       {paying && (
-        <div className="modal-backdrop">
-          <div className="modal gateway" role="dialog" aria-label="Instalment payment">
-            <p className="gateway-brand">DPJ Secure Checkout (simulated)</p>
-            <h3 style={{ fontSize: "2rem" }}>{formatINR(paying.monthlyAmount)}</h3>
-            <p className="muted" style={{ fontSize: "0.9rem" }}>
-              Instalment {paying.paidCount + 1} of {paying.tenureMonths} · {paying.variantName} ·
-              converts to gold at {formatINR(paying.rate22)}/g
-            </p>
-            <div style={{ display: "grid", gap: "0.7rem", marginTop: "1.6rem" }}>
-              <button className="btn btn-green" disabled={busy} onClick={() => pay("success")}>
-                {busy ? "Processing…" : "Pay now (simulate success)"}
-              </button>
-              <button className="btn btn-outline" disabled={busy} onClick={() => pay("failure")}>
-                Simulate a failed payment
-              </button>
-              <button className="remove-btn" style={{ margin: "0.4rem auto 0" }} onClick={() => setPaying(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <PaySheet
+          amount={paying.monthlyAmount}
+          title={
+            paying.paidCount === 0
+              ? `First instalment · ${paying.variantName} · activates ${paying.id}`
+              : `Instalment ${paying.paidCount + 1} of ${paying.tenureMonths} · ${paying.variantName}`
+          }
+          subline={`Converts to gold at today's 22K rate (${formatINR(paying.rate22)}/g)`}
+          busy={busy}
+          onPay={(method) => pay("success", method)}
+          onFail={(method) => pay("failure", method)}
+          onCancel={() => setPaying(null)}
+        />
       )}
     </div>
   );

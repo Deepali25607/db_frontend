@@ -71,11 +71,11 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   mySchemes: (phone) => request(`/api/schemes/my?phone=${encodeURIComponent(phone)}`),
-  paySchemeInstalment: (id, outcome) =>
+  paySchemeInstalment: (id, outcome, method) =>
     request(`/api/schemes/${id}/pay`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ outcome }),
+      body: JSON.stringify({ outcome, method }),
     }),
   redeemScheme: (id) =>
     request(`/api/schemes/${id}/redeem`, { method: "POST" }),

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BagIcon, CardIcon, HeartIcon, PinIcon, UserIcon } from "../components/Icons";
-import { accountApi } from "../lib/api";
+import { BagIcon, CardIcon, GemIcon, HeartIcon, PinIcon, UserIcon } from "../components/Icons";
+import PaySheet from "../components/PaySheet";
+import SchemeCard from "../components/SchemeCard";
+import { accountApi, api } from "../lib/api";
 import { useSeo } from "../lib/seo";
 import { formatINR } from "../lib/format";
 
@@ -12,6 +14,7 @@ const PROFILE_TABS = [
   { key: "profile", label: "Profile", icon: <UserIcon /> },
   { key: "addresses", label: "Addresses", icon: <PinIcon /> },
   { key: "orders", label: "Orders", icon: <BagIcon /> },
+  { key: "schemes", label: "Gold Schemes", icon: <GemIcon /> },
   { key: "credit", label: "Credit", icon: <CardIcon /> },
 ];
 
@@ -72,6 +75,7 @@ export default function Account() {
             <div className="profile-card"><AddressBook me={me} onChanged={load} /></div>
           )}
           {tab === "orders" && <div className="profile-card"><History me={me} /></div>}
+          {tab === "schemes" && <div className="profile-card"><SchemesPanel me={me} /></div>}
           {tab === "credit" && <div className="profile-card"><Rewards /></div>}
         </div>
       </div>
@@ -517,23 +521,6 @@ function History({ me }) {
         ))
       )}
 
-      {me.schemes.length > 0 && (
-        <>
-          <h3 className="admin-subhead">Gold schemes</h3>
-          {me.schemes.map((s) => (
-            <div key={s.id} className="scheme-status-card">
-              <div className="scheme-status-head">
-                <strong>{s.variantName}</strong>
-                <span className="status-pill">{s.status}</span>
-              </div>
-              <p className="muted" style={{ fontSize: "0.84rem" }}>
-                {s.paidCount}/{s.tenureMonths} paid · {s.gramsAccrued} g · {formatINR(s.currentValue)} today
-              </p>
-            </div>
-          ))}
-        </>
-      )}
-
       {me.enquiries.length > 0 && (
         <>
           <h3 className="admin-subhead">Commissions</h3>
@@ -563,6 +550,91 @@ function History({ me }) {
             </div>
           ))}
         </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------- gold schemes */
+/* The scheme dashboard inside My Profile: every enrolled scheme with its
+   live status, invested total, accumulated grams, instalment progress,
+   next due date and full payment history — refreshed after every
+   successful payment. */
+function SchemesPanel({ me }) {
+  const phone = me.customer.phone;
+  const [schemes, setSchemes] = useState(null);
+  const [error, setError] = useState(null);
+  const [paying, setPaying] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () =>
+    api.mySchemes(phone).then(setSchemes).catch((e) => setError(e.message));
+
+  useEffect(() => {
+    if (phone) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone]);
+
+  const pay = async (outcome, method) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.paySchemeInstalment(paying.id, outcome, method);
+      setPaying(null);
+      await load();
+    } catch (err) {
+      setPaying(null);
+      setError(err.message);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const redeem = async (s) => {
+    setError(null);
+    try {
+      await api.redeemScheme(s.id);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div>
+      <h3 className="admin-subhead" style={{ marginTop: 0 }}>Gold schemes</h3>
+      {error && <p className="form-error" style={{ marginBottom: "0.9rem" }}>{error}</p>}
+      {!schemes && !error && <div className="skeleton" style={{ height: 160 }} />}
+      {schemes && schemes.length === 0 && (
+        <div>
+          <p className="muted">
+            No gold schemes yet — save in grams, not rupees: every instalment
+            converts to gold at that day&#8217;s 22K rate.
+          </p>
+          <Link to="/gold-scheme" className="btn btn-maroon" style={{ marginTop: "1rem", display: "inline-flex" }}>
+            Explore the Gold Scheme &#8594;
+          </Link>
+        </div>
+      )}
+      {(schemes || []).map((s) => (
+        <SchemeCard key={s.id} scheme={s} onPay={setPaying} onRedeem={redeem} />
+      ))}
+
+      {paying && (
+        <PaySheet
+          amount={paying.monthlyAmount}
+          title={
+            paying.paidCount === 0
+              ? `First instalment - ${paying.variantName} - activates ${paying.id}`
+              : `Instalment ${paying.paidCount + 1} of ${paying.tenureMonths} - ${paying.variantName}`
+          }
+          subline={`Converts to gold at today's 22K rate (${formatINR(paying.rate22)}/g)`}
+          busy={busy}
+          onPay={(method) => pay("success", method)}
+          onFail={(method) => pay("failure", method)}
+          onCancel={() => setPaying(null)}
+        />
       )}
     </div>
   );
