@@ -100,23 +100,23 @@ function ProfileCard({ me, onSaved, onDeleted }) {
           <p className="muted" style={{ margin: "0.1rem 0 0.4rem" }}>Member since {since}</p>
           <span className="verified-chip">Phone ✓</span>
         </div>
+        {!editing && (
+          <button className="btn btn-outline profile-edit-btn" onClick={() => setEditing(true)}>
+            ✎ Edit profile
+          </button>
+        )}
       </div>
 
       {!editing ? (
-        <>
-          <dl className="profile-grid">
-            <div><dt>Full name</dt><dd>{dash(c.name)}</dd></div>
-            <div><dt>Email</dt><dd>{dash(c.email)}</dd></div>
-            <div><dt>Phone</dt><dd>{c.phone}</dd></div>
-            <div><dt>Date of birth</dt><dd>{c.dob ? fmtDate(c.dob) : "—"}</dd></div>
-            <div><dt>Gender</dt><dd>{dash(c.gender)}</dd></div>
-            {c.anniversary && <div><dt>Anniversary</dt><dd>{fmtDate(c.anniversary)}</dd></div>}
-            {c.ringSize && <div><dt>Ring size</dt><dd>{c.ringSize}</dd></div>}
-          </dl>
-          <button className="btn btn-maroon" onClick={() => setEditing(true)}>
-            ✎ Edit profile
-          </button>
-        </>
+        <dl className="profile-grid">
+          <div><dt>Full name</dt><dd>{dash(c.name)}</dd></div>
+          <div><dt>Email</dt><dd>{dash(c.email)}</dd></div>
+          <div><dt>Phone</dt><dd>{c.phone}</dd></div>
+          <div><dt>Date of birth</dt><dd>{c.dob ? fmtDate(c.dob) : "—"}</dd></div>
+          <div><dt>Gender</dt><dd>{dash(c.gender)}</dd></div>
+          {c.anniversary && <div><dt>Anniversary</dt><dd>{fmtDate(c.anniversary)}</dd></div>}
+          {c.ringSize && <div><dt>Ring size</dt><dd>{c.ringSize}</dd></div>}
+        </dl>
       ) : (
         <EditProfile
           me={me}
@@ -461,7 +461,11 @@ function Privacy({ onDeleted }) {
 
   return (
     <div>
-      <h3 className="admin-subhead">Privacy (DPDP)</h3>
+      <h3 className="admin-subhead">Privacy &amp; your data</h3>
+      <p className="muted" style={{ fontSize: "0.82rem", margin: "0 0 0.9rem" }}>
+        Your rights under India&#8217;s data-protection law — take a copy of
+        everything we hold, or erase your account entirely.
+      </p>
       {note && <p className="admin-note">{note}</p>}
       <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap" }}>
         <button className="btn btn-outline" onClick={exportData}>

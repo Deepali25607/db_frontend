@@ -5539,3 +5539,42 @@ body.admin-calm.has-bg::before {
     flex-wrap: wrap;
   }
 }
+
+/* ------------------------------------------------ profile card polish */
+/* Structured, ledger-style profile: header band with the edit action,
+   spec-sheet detail rows with hairline rules, serif values. */
+.profile-head {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+.profile-edit-btn {
+  margin-left: auto;
+  align-self: center;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.78rem;
+}
+.profile-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 0 2.6rem;
+  margin: 0 0 1.9rem;
+}
+.profile-grid > div {
+  padding: 1rem 0 0.9rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.profile-grid dt {
+  margin-bottom: 0.3rem;
+}
+.profile-grid dd {
+  font-family: var(--serif);
+  font-size: 1.12rem;
+  line-height: 1.25;
+}
+@media (max-width: 640px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
