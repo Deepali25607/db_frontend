@@ -1445,6 +1445,24 @@ h1, h2, h3, h4 {
   object-fit: cover;
 }
 
+/* the whole info column sits on a frosted panel so price notes, chips and
+   enquiry lines stay readable over any uploaded wallpaper */
+.pdp-info {
+  align-self: start;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  padding: 1.9rem 1.9rem 1.7rem;
+  box-shadow: 0 26px 60px -34px rgba(56, 7, 15, 0.35);
+}
+@media (max-width: 640px) {
+  .pdp-info {
+    padding: 1.2rem 1rem 1.1rem;
+  }
+}
+
 .pdp-info h1 {
   font-size: clamp(1.8rem, 3.2vw, 2.6rem);
   margin: 0.4rem 0 0.5rem;
@@ -1691,27 +1709,122 @@ h1, h2, h3, h4 {
   padding-block: 1.05rem;
 }
 
-.pdp-secondary {
-  display: flex;
-  gap: 1.6rem;
-  font-size: 0.84rem;
-  color: var(--ink-soft);
+/* ---- personal concierge card — the enquiry channels get their own
+   highlighted home instead of three quiet text links */
+.pdp-concierge {
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line-soft));
+  background: color-mix(in srgb, var(--gold) 9%, var(--paper));
+  border-radius: 16px;
+  padding: 1rem 1.15rem 1.15rem;
   margin-bottom: 1.8rem;
-  flex-wrap: wrap;
 }
-
-.pdp-secondary a,
-.pdp-secondary button {
+.pdp-concierge.glow {
+  animation: conciergeGlow 1.3s ease-in-out 2;
+}
+@keyframes conciergeGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(185, 138, 47, 0); }
+  50% { box-shadow: 0 0 0 7px rgba(185, 138, 47, 0.3); }
+}
+.pdp-conc-eyebrow {
+  display: block;
+  font-size: 0.66rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+}
+.pdp-conc-lead {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  margin: 0.3rem 0 0.75rem;
+}
+.pdp-conc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.pdp-conc-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  transition: color 0.2s ease;
-  font-size: inherit;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.25s ease, color 0.25s ease, background-color 0.25s ease, transform 0.25s ease;
+}
+.pdp-conc-btn:hover,
+.pdp-conc-btn:focus-visible {
+  border-color: var(--maroon);
+  color: var(--maroon);
+  background: var(--cream);
+  transform: translateY(-1px);
+}
+.pdp-conc-btn.wa svg {
+  color: #1e9e57;
 }
 
-.pdp-secondary a:hover,
-.pdp-secondary button:hover {
-  color: var(--maroon);
+/* ---- the gentle nudge — one small card per session, bottom-left, that
+   walks the visitor to the concierge channels */
+.concierge-nudge {
+  position: fixed;
+  left: 1.4rem;
+  bottom: 1.4rem;
+  z-index: 120;
+  max-width: 300px;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--line-soft));
+  border-radius: 16px;
+  padding: 1rem 1.15rem 1.05rem;
+  box-shadow: 0 22px 48px -20px rgba(56, 7, 15, 0.5);
+  animation: nudgeIn 0.5s var(--ease-out) both;
+}
+@keyframes nudgeIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.concierge-nudge strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  padding-right: 1.1rem;
+}
+.concierge-nudge p {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin: 0.35rem 0 0.7rem;
+}
+.cn-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+}
+.cn-btn {
+  padding: 0.5rem 1.1rem;
+  font-size: 0.78rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .concierge-nudge { animation: none; }
+  .pdp-concierge.glow { animation: none; }
+}
+@media (max-width: 860px) {
+  .concierge-nudge {
+    left: 0.9rem;
+    right: 0.9rem;
+    max-width: none;
+    bottom: calc(6.6rem + env(safe-area-inset-bottom));
+  }
 }
 
 .pin-check {
@@ -4017,6 +4130,52 @@ h1, h2, h3, h4 {
   .wish-btn {
     opacity: 1;
     transform: none;
+  }
+
+  /* ---- compact two-up browsing grid — Shop/Wishlist/related show four
+     pieces per screen instead of one giant card (the homepage swipe deck
+     is excluded and keeps its large cards) */
+  .product-grid:not(.m-swipe) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.1rem 0.65rem;
+  }
+  .product-grid:not(.m-swipe) .product-media {
+    border-radius: 12px;
+  }
+  .product-grid:not(.m-swipe) .product-info {
+    padding: 0.55rem 0.1rem 0;
+  }
+  .product-grid:not(.m-swipe) .product-info h3 {
+    font-size: 0.86rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .product-grid:not(.m-swipe) .product-meta {
+    font-size: 0.64rem;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .product-grid:not(.m-swipe) .product-price {
+    font-size: 0.92rem;
+  }
+  .product-grid:not(.m-swipe) .product-media .flag {
+    top: 0.5rem;
+    left: 0.5rem;
+    font-size: 0.5rem;
+    padding: 0.28rem 0.5rem;
+  }
+  .product-grid:not(.m-swipe) .wish-btn {
+    width: 30px;
+    height: 30px;
+    top: 0.45rem;
+    right: 0.45rem;
+  }
+  .product-grid:not(.m-swipe) .wish-btn svg {
+    width: 14px;
+    height: 14px;
   }
 }
 

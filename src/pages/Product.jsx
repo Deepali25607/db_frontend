@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 import Reveal from "../components/Reveal";
@@ -17,12 +18,48 @@ function EnquiryRow({ product, config, content }) {
   const [cbNote, setCbNote] = useState(null);
   const [cbError, setCbError] = useState(null);
   const [cbBusy, setCbBusy] = useState(false);
+  const [nudge, setNudge] = useState(false);
+  const [glow, setGlow] = useState(false);
+  const cardRef = useRef(null);
 
   const waDigits = (content?.supportWhatsapp || "").replace(/\D/g, "");
   const showWa = (config?.pdpShowWhatsapp ?? 1) && waDigits;
   const showCall = config?.pdpShowCallback ?? 1;
   const showVisit = config?.pdpShowVisit ?? 1;
-  if (!showWa && !showCall && !showVisit) return null;
+  const anyChannel = showWa || showCall || showVisit;
+
+  // one gentle nudge per browsing session, a beat after the page settles
+  useEffect(() => {
+    if (!anyChannel) return;
+    try {
+      if (sessionStorage.getItem("dpj_concierge_nudge")) return;
+    } catch {
+      return;
+    }
+    const t = setTimeout(() => {
+      setNudge(true);
+      try {
+        sessionStorage.setItem("dpj_concierge_nudge", "1");
+      } catch {}
+    }, 2200);
+    return () => clearTimeout(t);
+  }, [anyChannel]);
+
+  // and it excuses itself if ignored
+  useEffect(() => {
+    if (!nudge) return;
+    const t = setTimeout(() => setNudge(false), 14000);
+    return () => clearTimeout(t);
+  }, [nudge]);
+
+  const spotlight = () => {
+    setNudge(false);
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setGlow(true);
+    setTimeout(() => setGlow(false), 2800);
+  };
+
+  if (!anyChannel) return null;
 
   const submitCallback = async (e) => {
     e.preventDefault();
@@ -41,46 +78,73 @@ function EnquiryRow({ product, config, content }) {
 
   return (
     <>
-      <div className="pdp-secondary">
-        {showWa ? (
-          <a
-            href={`https://wa.me/${waDigits}?text=${encodeURIComponent(
-              `I'd like to enquire about ${product.name} (${product.id})`
-            )}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <WhatsAppIcon /> Enquire on WhatsApp
-          </a>
+      <div ref={cardRef} className={`pdp-concierge ${glow ? "glow" : ""}`}>
+        <span className="pdp-conc-eyebrow">Personal concierge</span>
+        <p className="pdp-conc-lead">
+          Unsure about the size, stones or price? Talk to us about this piece —
+        </p>
+        <div className="pdp-conc-actions">
+          {showWa ? (
+            <a
+              className="pdp-conc-btn wa"
+              href={`https://wa.me/${waDigits}?text=${encodeURIComponent(
+                `I'd like to enquire about ${product.name} (${product.id})`
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <WhatsAppIcon /> Enquire on WhatsApp
+            </a>
+          ) : null}
+          {showCall ? (
+            <button
+              className="pdp-conc-btn"
+              onClick={() => { setCbOpen((o) => !o); setCbNote(null); setCbError(null); }}
+            >
+              ☏ Request a call back
+            </button>
+          ) : null}
+          {showVisit ? (
+            <Link className="pdp-conc-btn" to={`/appointments?product=${product.slug}`}>
+              ◈ Book a showroom visit
+            </Link>
+          ) : null}
+        </div>
+        {cbNote && <p className="admin-note" style={{ marginTop: "0.6rem" }}>{cbNote}</p>}
+        {showCall && cbOpen ? (
+          <form className="pin-form" style={{ marginTop: "0.6rem", maxWidth: 420 }} onSubmit={submitCallback}>
+            <input
+              inputMode="numeric"
+              placeholder="10-digit mobile to call you on"
+              value={cbPhone}
+              onChange={(e) => setCbPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              aria-label="Mobile number for the call back"
+              autoFocus
+            />
+            <button className="btn btn-green" disabled={cbBusy || cbPhone.length !== 10}>
+              {cbBusy ? "Sending…" : "Call me"}
+            </button>
+          </form>
         ) : null}
-        {showCall ? (
-          <button onClick={() => { setCbOpen((o) => !o); setCbNote(null); setCbError(null); }}>
-            Request a call back
-          </button>
-        ) : null}
-        {showVisit ? (
-          <Link to={`/appointments?product=${product.slug}`}>
-            Book a showroom visit for this piece
-          </Link>
-        ) : null}
+        {cbError && <p className="form-error" style={{ marginTop: "0.5rem" }}>{cbError}</p>}
       </div>
-      {cbNote && <p className="admin-note" style={{ marginTop: "0.6rem" }}>{cbNote}</p>}
-      {showCall && cbOpen ? (
-        <form className="pin-form" style={{ marginTop: "0.6rem", maxWidth: 420 }} onSubmit={submitCallback}>
-          <input
-            inputMode="numeric"
-            placeholder="10-digit mobile to call you on"
-            value={cbPhone}
-            onChange={(e) => setCbPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            aria-label="Mobile number for the call back"
-            autoFocus
-          />
-          <button className="btn btn-green" disabled={cbBusy || cbPhone.length !== 10}>
-            {cbBusy ? "Sending…" : "Call me"}
-          </button>
-        </form>
-      ) : null}
-      {cbError && <p className="form-error" style={{ marginTop: "0.5rem" }}>{cbError}</p>}
+      {nudge &&
+        createPortal(
+          <aside className="concierge-nudge" role="status" aria-label="Concierge help">
+            <button className="cn-close" onClick={() => setNudge(false)} aria-label="Dismiss">
+              ✕
+            </button>
+            <strong>Questions about this piece?</strong>
+            <p>
+              Our concierge is a tap away — WhatsApp us, request a call back, or
+              book a private showroom visit.
+            </p>
+            <button className="btn btn-maroon cn-btn" onClick={spotlight}>
+              Show me →
+            </button>
+          </aside>,
+          document.body
+        )}
     </>
   );
 }
