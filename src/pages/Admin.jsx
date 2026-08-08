@@ -2920,6 +2920,8 @@ function Customers() {
 function Callbacks() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState(null);
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
 
   const refresh = useCallback(() => {
     adminApi.callbacks().then(setRows).catch((e) => setError(e.message));
@@ -2940,6 +2942,15 @@ function Callbacks() {
   if (!rows) return <div className="skeleton" style={{ height: 240 }} />;
 
   const pending = rows.filter((r) => r.status === "New").length;
+  const statuses = [...new Set(rows.map((r) => r.status))];
+  const needle = q.trim().toLowerCase();
+  const shown = rows.filter((r) => {
+    if (status && r.status !== status) return false;
+    if (!needle) return true;
+    return [r.phone, r.name, r.productName, r.slug].some(
+      (v) => String(v || "").toLowerCase().includes(needle)
+    );
+  });
 
   return (
     <div>
@@ -2949,15 +2960,39 @@ function Callbacks() {
         {pending > 0 ? ` ${pending} waiting.` : " Nothing waiting."}
       </p>
       {error && <p className="form-error">{error}</p>}
+      {rows.length > 0 && (
+        <div className="od-filterbar" style={{ maxWidth: 640 }}>
+          <input
+            placeholder="Search mobile / name / piece…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Search call-backs"
+          />
+          <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
+            <option value="">All statuses</option>
+            {statuses.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {rows.length === 0 ? (
         <p className="muted">No call-back requests yet.</p>
+      ) : shown.length === 0 ? (
+        <p className="muted">
+          No call-backs match —{" "}
+          <button className="link-underline" onClick={() => { setQ(""); setStatus(""); }}>
+            clear the filters
+          </button>
+          .
+        </p>
       ) : (
         <table className="admin-table">
           <thead>
             <tr><th>When</th><th>Mobile</th><th>Piece</th><th>Status</th><th></th></tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {shown.map((r) => (
               <tr key={r.id}>
                 <td style={{ whiteSpace: "nowrap" }}>{fmtDate(r.at)}</td>
                 <td>{r.phone}{r.name ? <small>{r.name}</small> : null}</td>
@@ -2977,6 +3012,11 @@ function Callbacks() {
             ))}
           </tbody>
         </table>
+      )}
+      {rows.length > 0 && shown.length > 0 && (
+        <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.6rem" }}>
+          Showing {shown.length} of {rows.length} request{rows.length === 1 ? "" : "s"}
+        </p>
       )}
     </div>
   );
@@ -3044,6 +3084,8 @@ function Enquiries() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
 
   const refresh = useCallback(() => {
     adminApi.enquiries().then(setData).catch((e) => setError(e.message));
@@ -3083,19 +3125,53 @@ function Enquiries() {
       Ready: ["complete"],
     }[status] || []);
 
+  const statuses = [...new Set(data.enquiries.map((e) => e.status))];
+  const needle = q.trim().toLowerCase();
+  const shown = data.enquiries.filter((e) => {
+    if (status && e.status !== status) return false;
+    if (!needle) return true;
+    return [e.id, e.name, e.phone, e.description, e.category, e.stone, e.metal].some(
+      (v) => String(v || "").toLowerCase().includes(needle)
+    );
+  });
+
   return (
     <>
       {error && <p className="form-error">{error}</p>}
       {note && <p className="admin-note">{note}</p>}
+      {data.enquiries.length > 0 && (
+        <div className="od-filterbar" style={{ maxWidth: 640 }}>
+          <input
+            placeholder="Search name / mobile / enquiry ID / brief…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Search enquiries"
+          />
+          <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
+            <option value="">All statuses</option>
+            {statuses.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {data.enquiries.length === 0 ? (
         <p className="muted">No custom-design enquiries yet.</p>
+      ) : shown.length === 0 ? (
+        <p className="muted">
+          No enquiries match —{" "}
+          <button className="link-underline" onClick={() => { setQ(""); setStatus(""); }}>
+            clear the filters
+          </button>
+          .
+        </p>
       ) : (
         <table className="admin-table">
           <thead>
             <tr><th>Enquiry</th><th>Customer</th><th>Brief</th><th>Budget</th><th>Quote</th><th>Status</th><th>Action</th></tr>
           </thead>
           <tbody>
-            {data.enquiries.map((e) => (
+            {shown.map((e) => (
               <tr key={e.id}>
                 <td>{e.id}<small>{fmtDate(e.history[0].at)}</small></td>
                 <td>{e.name}<small>{e.phone}</small></td>
@@ -3126,6 +3202,11 @@ function Enquiries() {
             ))}
           </tbody>
         </table>
+      )}
+      {data.enquiries.length > 0 && shown.length > 0 && (
+        <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.6rem" }}>
+          Showing {shown.length} of {data.enquiries.length} enquir{data.enquiries.length === 1 ? "y" : "ies"}
+        </p>
       )}
     </>
   );
@@ -3432,6 +3513,9 @@ function Returns() {
 function Appointments() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [store, setStore] = useState("");
 
   const refresh = useCallback(() => {
     adminApi.appointments().then(setData).catch((e) => setError(e.message));
@@ -3452,18 +3536,62 @@ function Appointments() {
   if (error && !data) return <p className="form-error">{error}</p>;
   if (!data) return <div className="skeleton" style={{ height: 300 }} />;
 
+  const statuses = [...new Set(data.appointments.map((a) => a.status))];
+  const stores = [...new Set(data.appointments.map((a) => a.storeName).filter(Boolean))];
+  const needle = q.trim().toLowerCase();
+  const shown = data.appointments.filter((a) => {
+    if (status && a.status !== status) return false;
+    if (store && a.storeName !== store) return false;
+    if (!needle) return true;
+    return [a.id, a.name, a.phone, a.productName, a.date, a.storeName].some(
+      (v) => String(v || "").toLowerCase().includes(needle)
+    );
+  });
+
   return (
     <>
       {error && <p className="form-error">{error}</p>}
+      {data.appointments.length > 0 && (
+        <div className="od-filterbar" style={{ maxWidth: 820 }}>
+          <input
+            placeholder="Search name / mobile / appointment ID / piece / date…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Search appointments"
+          />
+          <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
+            <option value="">All statuses</option>
+            {statuses.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+          {stores.length > 1 && (
+            <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Filter by showroom">
+              <option value="">All showrooms</option>
+              {stores.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
       {data.appointments.length === 0 ? (
         <p className="muted">No appointments booked yet.</p>
+      ) : shown.length === 0 ? (
+        <p className="muted">
+          No appointments match —{" "}
+          <button className="link-underline" onClick={() => { setQ(""); setStatus(""); setStore(""); }}>
+            clear the filters
+          </button>
+          .
+        </p>
       ) : (
         <table className="admin-table">
           <thead>
             <tr><th>Appointment</th><th>Customer</th><th>Showroom</th><th>When</th><th>Viewing</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody>
-            {data.appointments.map((a) => (
+            {shown.map((a) => (
               <tr key={a.id}>
                 <td>{a.id}</td>
                 <td>{a.name}<small>{a.phone}</small></td>
@@ -3488,6 +3616,11 @@ function Appointments() {
             ))}
           </tbody>
         </table>
+      )}
+      {data.appointments.length > 0 && shown.length > 0 && (
+        <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.6rem" }}>
+          Showing {shown.length} of {data.appointments.length} appointment{data.appointments.length === 1 ? "" : "s"}
+        </p>
       )}
     </>
   );
