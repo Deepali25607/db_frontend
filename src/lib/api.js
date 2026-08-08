@@ -352,6 +352,8 @@ export const adminApi = {
   config: () => request("/api/admin/config", { headers: adminHeaders() }),
   patchContent: (body) =>
     request("/api/admin/content", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify(body) }),
+  patchCategoryImage: (key, image) =>
+    request("/api/admin/categories", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ key, image }) }),
   discountRules: () => request("/api/admin/discount-rules", { headers: adminHeaders() }),
   patchDiscountRules: (rules) =>
     request("/api/admin/discount-rules", { method: "PATCH", headers: adminHeaders(), body: JSON.stringify({ rules }) }),

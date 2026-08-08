@@ -58,6 +58,11 @@ export default function Shop() {
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [catList, setCatList] = useState([]);
+
+  useEffect(() => {
+    api.categories().then(setCatList).catch(() => {});
+  }, []);
 
   const category = params.get("category") || "";
   const metal = params.get("metal") || "";
@@ -114,8 +119,31 @@ export default function Shop() {
   const clearAll = () => setParams(new URLSearchParams(), { replace: true });
   const hasFilters = category || metal || purity || occasion || minPrice || maxPrice;
 
+  // A single-category visit gets that category's own promotional banner —
+  // admin-managed (Settings → Category banners), independent of the listings.
+  const singleCat =
+    !q && category && !category.includes(",")
+      ? catList.find((c) => c.key === category)
+      : null;
+
   return (
     <>
+      {singleCat ? (
+        <div className="cat-banner">
+          <img src={singleCat.image} alt="" aria-hidden />
+          <div className="container cat-banner-content">
+            <span className="eyebrow">The Collection</span>
+            <h1>
+              {singleCat.label}<em>.</em>
+            </h1>
+            <p>
+              {singleCat.tagline}
+              {data ? ` · ${data.total} piece${data.total === 1 ? "" : "s"}` : ""} · priced live
+              on today's rate
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="page-band">
         <div className="container">
           {q ? (
@@ -145,6 +173,7 @@ export default function Shop() {
           )}
         </div>
       </div>
+      )}
 
       <div className="container shop-layout">
         <aside className={`filters ${filtersOpen ? "open" : ""}`}>

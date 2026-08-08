@@ -1665,6 +1665,89 @@ function DeliveryAreaPanel({ config, onSaved }) {
 /* Category promotions — sale-banner images marquee-ing under the homepage
    hero, each linked to a category listing. Disable a row to end a sale
    without losing the upload; ▲▼ set the on-screen order. */
+/* Per-category promotional banner — crowns the category page and fronts the
+   homepage mosaic / mega-menu / search tiles. Stored apart from the
+   catalogue, so the picture and the product listings never touch. */
+function CategoryBannersPanel({ onSaved }) {
+  const [cats, setCats] = useState(null);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(null); // key currently updating
+
+  const load = () => api.categories().then(setCats).catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const apply = async (key, image, label) => {
+    setBusy(key);
+    setError(null);
+    setNote(null);
+    try {
+      await adminApi.patchCategoryImage(key, image);
+      await load();
+      setNote(image ? `${label} banner updated — live on the category page.` : `${label} restored to the house picture.`);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const upload = (key, label) => async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(key);
+    setError(null);
+    try {
+      const { url } = await adminApi.uploadFile(file);
+      await apply(key, url, label);
+    } catch (err) {
+      setError(err.message);
+      setBusy(null);
+    }
+  };
+
+  if (error && !cats) return <p className="form-error">{error}</p>;
+  if (!cats) return <div className="skeleton" style={{ height: 240 }} />;
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <p className="muted" style={{ fontSize: "0.84rem", marginBottom: "1rem" }}>
+        Each category page opens with this picture as its fixed promotional
+        banner; it also fronts the homepage mosaic, the mega-menu and the
+        search tiles. Banners live apart from the catalogue — updating one
+        never changes the product listings, and editing products never
+        changes the banner.
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      {note && <p className="admin-note">{note}</p>}
+      {cats.map((c) => (
+        <div key={c.key} className="catb-row">
+          <img src={c.image} alt="" loading="lazy" />
+          <div className="catb-main">
+            <strong>{c.label}</strong>
+            <small className="muted">
+              {c.count} piece{c.count === 1 ? "" : "s"} · {c.custom ? "custom banner" : "house picture"}
+            </small>
+          </div>
+          <label className="btn btn-outline catb-btn">
+            {busy === c.key ? "Working…" : "⤒ Upload banner…"}
+            <input type="file" accept="image/*" hidden onChange={upload(c.key, c.label)} disabled={busy === c.key} />
+          </label>
+          {c.custom && (
+            <button className="remove-btn" disabled={busy === c.key} onClick={() => apply(c.key, "", c.label)}>
+              Restore default
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CategoryPromoPanel({ onSaved }) {
   const [rows, setRows] = useState(null);
   const [cats, setCats] = useState([]);
@@ -2170,11 +2253,13 @@ function Settings() {
   const [emiPlans, setEmiPlans] = useState(null);
   const [schemeVariants, setSchemeVariants] = useState(null);
   const [discountRules, setDiscountRules] = useState(null);
+  const [cats, setCats] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState(null); // null = hub
 
   const refresh = useCallback(() => {
     adminApi.config().then(setData).catch((e) => setError(e.message));
+    api.categories().then(setCats).catch(() => {});
     api.content().then(setContent).catch(() => {});
     adminApi.auditLog().then(setAuditRows).catch(() => {});
     api.stores().then((d) => setStoreRows(d.stores)).catch(() => {});
@@ -2312,6 +2397,15 @@ function Settings() {
       })(),
     },
     {
+      key: "catbanners",
+      glyph: "▤",
+      title: "Category banners",
+      desc: "The promotional picture crowning each category page and its tiles.",
+      chip: cats
+        ? `${cats.filter((c) => c.custom).length} of ${cats.length} custom`
+        : "…",
+    },
+    {
       key: "hero",
       glyph: "▶",
       title: "Homepage hero media",
@@ -2356,6 +2450,7 @@ function Settings() {
         {view === "emi" && <EmiPlansPanel onSaved={refresh} />}
         {view === "goldplans" && <SchemeVariantsPanel onSaved={refresh} />}
         {view === "catpromo" && <CategoryPromoPanel onSaved={refresh} />}
+        {view === "catbanners" && <CategoryBannersPanel onSaved={refresh} />}
         {view === "appearance" && <AppearancePanel onSaved={refresh} />}
         {view === "headerfooter" && <HeaderFooterPanel onSaved={refresh} />}
         {view === "pdp" && <PdpDetailsPanel config={data.config} onSaved={refresh} />}
