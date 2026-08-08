@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { adminApi, api } from "../lib/api";
 import { formatINR } from "../lib/format";
 
@@ -40,7 +41,14 @@ const NAV_GROUPS = [
 export default function Admin() {
   const [authed, setAuthed] = useState(adminApi.hasKey());
   const [me, setMe] = useState(null); // hash-stripped admin + catalog, from /me
-  const [tab, setTab] = useState("dashboard");
+  // the active module lives in the URL (?tab=…) so a refresh stays on the same page
+  const [params, setParams] = useSearchParams();
+  const rawTab = params.get("tab");
+  const tab = PERMISSION_DEFINITIONS.some((p) => p.id === rawTab) ? rawTab : "dashboard";
+  const setTab = useCallback(
+    (id) => setParams(id && id !== "dashboard" ? { tab: id } : {}),
+    [setParams]
+  );
   const [badges, setBadges] = useState({});
 
   // the storefront wallpaper glows; the back office needs calm — a strong
@@ -65,7 +73,7 @@ export default function Admin() {
       .me()
       .then((d) => {
         setMe(d);
-        if (!d.admin.permissions.includes("dashboard")) {
+        if (!d.admin.permissions.includes(tab)) {
           const first = PERMISSION_DEFINITIONS.find((p) => d.admin.permissions.includes(p.id));
           if (first) setTab(first.id);
         }
@@ -2255,7 +2263,16 @@ function Settings() {
   const [discountRules, setDiscountRules] = useState(null);
   const [cats, setCats] = useState(null);
   const [error, setError] = useState(null);
-  const [view, setView] = useState(null); // null = hub
+  // the open settings card lives in the URL (?panel=…) so a refresh stays on it
+  const [params, setParams] = useSearchParams();
+  const rawView = params.get("panel");
+  const setView = (v) =>
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (v) next.set("panel", v);
+      else next.delete("panel");
+      return next;
+    });
 
   const refresh = useCallback(() => {
     adminApi.config().then(setData).catch((e) => setError(e.message));
@@ -2431,6 +2448,8 @@ function Settings() {
       chip: auditRows?.length ? `last: ${auditRows[0].action}` : "no actions yet",
     },
   ];
+
+  const view = cards.some((c) => c.key === rawView) ? rawView : null;
 
   if (view) {
     const card = cards.find((c) => c.key === view);
