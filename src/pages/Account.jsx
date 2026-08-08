@@ -508,7 +508,7 @@ function History({ me }) {
               {o.items} · {formatINR(o.payable)} · {fmtDate(o.placedAt)}
             </p>
             <div style={{ display: "flex", gap: "1rem" }}>
-              <Link to="/track" className="link-underline" style={{ fontSize: "0.82rem" }}>
+              <Link to={`/track?order=${encodeURIComponent(o.orderId)}`} className="link-underline" style={{ fontSize: "0.82rem" }}>
                 Track this order
               </Link>
               {o.invoiceAvailable && (

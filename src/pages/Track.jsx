@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
-import { api } from "../lib/api";
+import { accountApi, api } from "../lib/api";
 import { formatINR } from "../lib/format";
 
 const RETURN_REASONS = [
@@ -13,6 +13,8 @@ const RETURN_REASONS = [
 ];
 
 export default function Track() {
+  const [params] = useSearchParams();
+  const wanted = params.get("order") || "";
   const [orderId, setOrderId] = useState("");
   const [phone, setPhone] = useState("");
   const [orders, setOrders] = useState(null); // phone-first: all orders
@@ -20,6 +22,54 @@ export default function Track() {
   const [byId, setById] = useState(false); // optional order-ID mode
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [me, setMe] = useState(null); // signed-in customer, if any
+  const [booted, setBooted] = useState(!accountApi.hasToken());
+
+  // A signed-in customer never types anything — their phone comes from the
+  // session, and ?order=<id> (the profile's Track links) opens that order's
+  // full detail directly, Flipkart-fashion.
+  useEffect(() => {
+    if (!accountApi.hasToken()) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await accountApi.me();
+        if (!alive) return;
+        const ph = res.customer.phone;
+        setMe(res.customer);
+        setPhone(ph);
+        if (wanted) {
+          setOrderId(wanted);
+          setResult(await api.track(wanted, ph));
+        } else {
+          const { orders: mine } = await api.trackMy(ph);
+          if (!alive) return;
+          setOrders(mine);
+          if (mine.length === 1) {
+            setOrderId(mine[0].orderId);
+            setResult(await api.track(mine[0].orderId, ph));
+          }
+        }
+      } catch {
+        // stale/failed session — fall back to the manual forms
+      } finally {
+        if (alive) setBooted(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const useAnotherNumber = () => {
+    setMe(null);
+    setOrders(null);
+    setResult(null);
+    setError(null);
+    setPhone("");
+    setOrderId("");
+  };
 
   // phone is all it takes — list every order, piece by piece
   const lookupMine = async (e) => {
@@ -87,7 +137,22 @@ export default function Track() {
       </div>
 
       <div className="container" style={{ maxWidth: 680, padding: "3rem 0 6rem" }}>
-        {!byId ? (
+        {!booted ? (
+          <div className="skeleton" style={{ height: 220 }} />
+        ) : me ? (
+          <p className="muted" style={{ fontSize: "0.86rem", marginBottom: "0.4rem" }}>
+            Signed in as <strong>{me.name || me.phone}</strong> ({me.phone}) — your orders
+            appear automatically ·{" "}
+            <button
+              className="link-underline"
+              style={{ font: "inherit", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--maroon)" }}
+              onClick={useAnotherNumber}
+            >
+              track a different number
+            </button>
+            {error && <span className="form-error" style={{ display: "block", marginTop: "0.7rem" }}>{error}</span>}
+          </p>
+        ) : !byId ? (
           <form className="checkout-form" onSubmit={lookupMine}>
             <div className="field">
               <label htmlFor="t-phone">Mobile number</label>
